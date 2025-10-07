@@ -153,38 +153,132 @@ class ChurnPredictor:
         # Convert to DataFrame
         df = pd.DataFrame([data])
         
-        # Apply label encoders to categorical columns
-        categorical_columns = [
-            'gender', 'Partner', 'Dependents', 'PhoneService', 'MultipleLines',
-            'InternetService', 'OnlineSecurity', 'OnlineBackup', 'DeviceProtection',
-            'TechSupport', 'StreamingTV', 'StreamingMovies', 'Contract',
-            'PaperlessBilling', 'PaymentMethod'
-        ]
+        # Create a copy for feature engineering
+        df_processed = df.copy()
         
-        for column in categorical_columns:
-            if column in df.columns and column in self.label_encoders:
-                encoder = self.label_encoders[column]
+        # Step 1: Apply label encoders to categorical columns and rename them
+        categorical_mappings = {
+            'gender': 'gender_encoded',
+            'Partner': 'Partner_encoded', 
+            'Dependents': 'Dependents_encoded',
+            'PhoneService': 'PhoneService_encoded',
+            'MultipleLines': 'MultipleLines_encoded',
+            'InternetService': 'InternetService_encoded',
+            'OnlineSecurity': 'OnlineSecurity_encoded',
+            'OnlineBackup': 'OnlineBackup_encoded',
+            'DeviceProtection': 'DeviceProtection_encoded',
+            'TechSupport': 'TechSupport_encoded',
+            'StreamingTV': 'StreamingTV_encoded',
+            'StreamingMovies': 'StreamingMovies_encoded',
+            'Contract': 'Contract_encoded',
+            'PaperlessBilling': 'PaperlessBilling_encoded',
+            'PaymentMethod': 'PaymentMethod_encoded'
+        }
+        
+        for original_col, encoded_col in categorical_mappings.items():
+            if original_col in df.columns and original_col in self.label_encoders:
+                encoder = self.label_encoders[original_col]
                 try:
-                    df[column] = encoder.transform(df[column])
+                    df_processed[encoded_col] = encoder.transform(df[original_col])
                 except ValueError:
                     # Handle unseen categories by using the most frequent category
-                    logger.warning(f"Unseen category in {column}: {df[column].iloc[0]}. Using most frequent category.")
+                    logger.warning(f"Unseen category in {original_col}: {df[original_col].iloc[0]}. Using most frequent category.")
                     most_frequent_category = encoder.classes_[0]  # Use first class as fallback
-                    df[column] = encoder.transform([most_frequent_category])
+                    df_processed[encoded_col] = encoder.transform([most_frequent_category])
         
-        # Ensure all model features are present
+        # Step 2: Handle SeniorCitizen special encoding
+        if 'SeniorCitizen' in df.columns:
+            df_processed['SeniorCitizen_Label_encoded'] = df['SeniorCitizen']
+        
+        # Step 3: Create engineered features (recreate from training)
+        
+        # LifeStage encoding
+        if 'Partner' in df.columns and 'Dependents' in df.columns:
+            if df['Partner'].iloc[0] == 'No' and df['Dependents'].iloc[0] == 'No':
+                life_stage = 'Single'
+            elif df['Partner'].iloc[0] == 'Yes' and df['Dependents'].iloc[0] == 'No':
+                life_stage = 'Couple'  
+            else:
+                life_stage = 'Family'
+            
+            # Encode LifeStage
+            if 'LifeStage' in self.label_encoders:
+                try:
+                    df_processed['LifeStage_encoded'] = self.label_encoders['LifeStage'].transform([life_stage])
+                except Exception:
+                    df_processed['LifeStage_encoded'] = 0
+        
+        # TenureCategory encoding
+        if 'tenure' in df.columns:
+            tenure = df['tenure'].iloc[0]
+            if tenure <= 12:
+                tenure_cat = 'Short-term'
+            elif tenure <= 36:
+                tenure_cat = 'Medium-term'
+            else:
+                tenure_cat = 'Long-term'
+                
+            if 'TenureCategory' in self.label_encoders:
+                try:
+                    df_processed['TenureCategory_encoded'] = self.label_encoders['TenureCategory'].transform([tenure_cat])
+                except Exception:
+                    df_processed['TenureCategory_encoded'] = 0
+        
+        # ServiceAdoptionScore (count of services)
+        service_columns = ['PhoneService', 'MultipleLines', 'InternetService', 'OnlineSecurity', 
+                          'OnlineBackup', 'DeviceProtection', 'TechSupport', 'StreamingTV', 'StreamingMovies']
+        service_count = 0
+        for col in service_columns:
+            if col in df.columns and df[col].iloc[0] == 'Yes':
+                service_count += 1
+        df_processed['ServiceAdoptionScore'] = service_count
+        
+        # MonthlyChargesPerService
+        if 'MonthlyCharges' in df.columns and service_count > 0:
+            df_processed['MonthlyChargesPerService'] = df['MonthlyCharges'].iloc[0] / service_count
+        else:
+            df_processed['MonthlyChargesPerService'] = 0
+            
+        # Security Bundle (OnlineSecurity + DeviceProtection + TechSupport)
+        security_services = ['OnlineSecurity', 'DeviceProtection', 'TechSupport']
+        security_count = sum(1 for col in security_services if col in df.columns and df[col].iloc[0] == 'Yes')
+        df_processed['SecurityBundle'] = security_count
+        
+        # Streaming Bundle (StreamingTV + StreamingMovies)
+        streaming_services = ['StreamingTV', 'StreamingMovies']
+        streaming_count = sum(1 for col in streaming_services if col in df.columns and df[col].iloc[0] == 'Yes')
+        df_processed['StreamingBundle'] = streaming_count
+        
+        # Online Perks Bundle (OnlineSecurity + OnlineBackup)
+        perks_services = ['OnlineSecurity', 'OnlineBackup']
+        perks_count = sum(1 for col in perks_services if col in df.columns and df[col].iloc[0] == 'Yes')
+        df_processed['OnlinePerksBundle'] = perks_count
+        
+        # Basic Support Bundle (TechSupport + DeviceProtection)
+        support_services = ['TechSupport', 'DeviceProtection']
+        support_count = sum(1 for col in support_services if col in df.columns and df[col].iloc[0] == 'Yes')
+        df_processed['BasicSupportBundle'] = support_count
+        
+        # HasFiberOptic
+        df_processed['HasFiberOptic'] = 1 if ('InternetService' in df.columns and df['InternetService'].iloc[0] == 'Fiber optic') else 0
+        
+        # HasInternet
+        df_processed['HasInternet'] = 1 if ('InternetService' in df.columns and df['InternetService'].iloc[0] != 'No') else 0
+        
+        # Ensure all model features are present with correct names
         for feature in self.model_features:
-            if feature not in df.columns:
-                df[feature] = 0  # Default value for missing features
+            if feature not in df_processed.columns:
+                logger.warning(f"Missing feature: {feature}, setting to 0")
+                df_processed[feature] = 0
         
-        # Select only the features used in training
-        df = df[self.model_features]
+        # Select only the features used in training in the correct order
+        df_final = df_processed[self.model_features]
         
         # Scale the features
         df_scaled = pd.DataFrame(
-            self.scaler.transform(df),
-            columns=df.columns,
-            index=df.index
+            self.scaler.transform(df_final),
+            columns=df_final.columns,
+            index=df_final.index
         )
         
         return df_scaled
