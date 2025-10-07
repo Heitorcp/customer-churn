@@ -1,0 +1,27 @@
+TELCO CUSTOMER CHURN PREDICTION MODEL
+==================================================
+
+Model: Logistic Regression (Recall-Optimized)
+Trained: 2025-10-07T16:49:25.023392
+Optimization Target: recall
+
+PERFORMANCE METRICS:
+--------------------
+Accuracy: 0.669
+Precision: 0.440
+Recall: 0.917
+F1 Score: 0.595
+Auc Roc: 0.838
+
+RECOMMENDED THRESHOLD: 0.535
+Business Impact: $235,450 net benefit
+ROI: 604.5%
+
+FILES IN THIS DIRECTORY:
+-------------------------
+• churn_prediction_model.pkl - Trained logistic regression model
+• feature_scaler.pkl - StandardScaler for numerical features
+• label_encoders.pkl - Label encoders for categorical features
+• model_features.pkl - List of features expected by model
+• model_metadata.pkl - Complete model metadata and performance
+• model_info.txt - This human-readable information file

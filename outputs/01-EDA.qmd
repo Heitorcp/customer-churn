@@ -1,0 +1,1545 @@
+---
+title: "Telco Customer Churn - Exploratory Data Analysis"
+author: "Data Analysis Report"
+date: today
+format: 
+  html:
+    code-fold: true
+    code-summary: "Show code"
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    theme: cosmo
+    embed-resources: true
+    css: |
+      .callout {
+        margin: 1rem 0;
+      }
+      .table-responsive {
+        overflow-x: auto;
+      }
+      details {
+        margin: 1rem 0;
+        padding: 1rem;
+        border: 1px solid #ddd;
+        border-radius: 0.5rem;
+        background-color: #f8f9fa;
+      }
+      summary {
+        font-weight: bold;
+        cursor: pointer;
+        padding: 0.5rem;
+        background-color: #e9ecef;
+        border-radius: 0.25rem;
+        margin: -1rem -1rem 1rem -1rem;
+      }
+execute:
+  warning: false
+  message: false
+jupyter: python3
+---
+
+# EDA
+
+::: {.callout-note}
+## Analysis Overview
+This comprehensive exploratory data analysis examines telco customer churn patterns, identifying key risk factors and business opportunities for retention strategies.
+:::
+
+```{python}
+import pandas as pd
+import zipfile
+import io
+import matplotlib.pyplot as plt
+import seaborn as sns
+from IPython.display import HTML, display
+
+# Set pandas display options for better table formatting
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', None)
+pd.set_option('display.max_colwidth', None)
+
+with zipfile.ZipFile('../data/telco-customer-churn.zip', 'r') as zip_file:
+    csv_content = zip_file.read('WA_Fn-UseC_-Telco-Customer-Churn.csv').decode('utf-8')
+    df = pd.read_csv(io.StringIO(csv_content))
+
+# Function to create pretty tables
+def create_pretty_table(data, title="", max_rows=10):
+    if isinstance(data, pd.DataFrame):
+        if len(data) > max_rows:
+            data_display = data.head(max_rows)
+            title += f" (showing first {max_rows} of {len(data)} rows)"
+        else:
+            data_display = data
+        
+        html = data_display.to_html(classes='table table-striped table-hover', 
+                                   table_id='styled-table',
+                                   escape=False)
+        if title:
+            html = f"<h4>{title}</h4>" + html
+        return HTML(html)
+    elif isinstance(data, pd.Series):
+        df_display = data.to_frame()
+        df_display.columns = ['Value']
+        html = df_display.to_html(classes='table table-striped table-hover')
+        if title:
+            html = f"<h4>{title}</h4>" + html
+        return HTML(html)
+    return data
+```
+
+::: {.callout-tip}
+## Dataset Preview
+Let's first examine the structure and content of our telco customer dataset.
+:::
+
+```{python}
+display(create_pretty_table(df, "Telco Customer Churn Dataset", max_rows=5))
+```
+
+## Basic Info about the Data
+
+<details>
+<summary>Click to view detailed dataset information</summary>
+
+```{python}
+# Dataset shape information
+shape_info = pd.DataFrame({
+    'Metric': ['Total Rows', 'Total Columns'],
+    'Value': [df.shape[0], df.shape[1]]
+})
+
+display(create_pretty_table(shape_info, "Dataset Dimensions"))
+
+# Data types information  
+dtypes_df = pd.DataFrame({
+    'Column': df.dtypes.index,
+    'Data Type': df.dtypes.values,
+    'Non-Null Count': df.count().values,
+    'Unique Values': [df[col].nunique() for col in df.columns]
+})
+
+display(create_pretty_table(dtypes_df, "Column Information"))
+```
+
+</details>
+
+## Data Quality and Missing Values
+
+<details>
+<summary>Click to view data quality assessment</summary>
+
+```{python}
+# Missing values analysis
+missing_info = pd.DataFrame({
+    'Column': df.columns,
+    'Missing Count': df.isnull().sum().values,
+    'Missing Percentage': (df.isnull().sum() / len(df) * 100).round(2).values,
+    'Unique Values': [df[col].nunique() for col in df.columns]
+})
+missing_info = missing_info[missing_info['Missing Count'] > 0] if missing_info['Missing Count'].sum() > 0 else missing_info.head(1)
+
+display(create_pretty_table(missing_info, f"Missing Values Analysis (Total: {df.isnull().sum().sum()})"))
+
+# Data quality issues
+quality_issues = []
+
+# Check TotalCharges issues
+empty_totalcharges = (df['TotalCharges'] == ' ').sum()
+if empty_totalcharges > 0:
+    quality_issues.append({
+        'Issue': 'Empty strings in TotalCharges',
+        'Count': empty_totalcharges,
+        'Description': 'TotalCharges contains empty strings instead of NaN'
+    })
+
+# Check for potential duplicates
+duplicate_count = df.duplicated().sum()
+if duplicate_count > 0:
+    quality_issues.append({
+        'Issue': 'Duplicate rows',
+        'Count': duplicate_count,
+        'Description': 'Identical rows found in dataset'
+    })
+
+if quality_issues:
+    issues_df = pd.DataFrame(quality_issues)
+    display(create_pretty_table(issues_df, "Data Quality Issues Detected"))
+else:
+    print("✅ No major data quality issues detected!")
+```
+
+</details>
+
+::: {.callout-important}
+## Key Data Quality Findings
+- **Dataset Size**: 7,043 customers with 21 features
+- **Missing Data**: Minimal missing values detected  
+- **Data Issues**: TotalCharges column contains empty strings that need cleaning
+:::
+
+
+## Target Variable Analysis
+
+::: {.callout-note}
+## Churn Analysis Focus
+Understanding the distribution of customer churn is crucial for building effective retention strategies and assessing model requirements.
+:::
+
+```{python}
+# Step 3: Target Variable Analysis (CHURN)
+churn_counts = df['Churn'].value_counts()
+churn_pct = df['Churn'].value_counts(normalize=True) * 100
+
+# Create churn distribution table
+churn_analysis = pd.DataFrame({
+    'Churn Status': churn_counts.index,
+    'Customer Count': churn_counts.values,
+    'Percentage': churn_pct.values.round(2)
+})
+
+display(create_pretty_table(churn_analysis, "Churn Distribution Analysis"))
+
+# Create summary metrics table
+overall_churn_rate = churn_pct['Yes']
+class_balance_ratio = churn_counts['No']/churn_counts['Yes']
+
+summary_metrics = pd.DataFrame({
+    'Metric': [
+        'Overall Churn Rate (%)',
+        'Customer Retention Rate (%)', 
+        'Class Balance Ratio (No:Yes)',
+        'Total Customers Analyzed'
+    ],
+    'Value': [
+        f"{overall_churn_rate:.2f}%",
+        f"{100 - overall_churn_rate:.2f}%",
+        f"{class_balance_ratio:.2f}:1",
+        f"{len(df):,}"
+    ]
+})
+
+display(create_pretty_table(summary_metrics, "Key Churn Metrics"))
+```
+
+::: {.callout-warning}
+## Class Imbalance Alert
+The dataset shows a **moderate class imbalance** with ~73% retained vs ~27% churned customers. This is typical for churn datasets but should be considered when building predictive models.
+:::
+
+## Key Business Metrics Analysis
+
+::: {.callout-tip}
+## Data Cleaning Step
+First, we'll clean the TotalCharges column by converting empty strings to proper numeric values.
+:::
+
+```{python}
+# First, fix the TotalCharges data issue
+df_clean = df.copy()
+# Replace empty strings with NaN, then convert to float
+df_clean['TotalCharges'] = df_clean['TotalCharges'].replace(' ', pd.NA)
+df_clean = df_clean.dropna(subset=['TotalCharges'])  # Remove rows with missing TotalCharges
+df_clean['TotalCharges'] = df_clean['TotalCharges'].astype(float)
+
+# Data cleaning summary
+cleaning_summary = pd.DataFrame({
+    'Metric': [
+        'Original Dataset Size',
+        'After Cleaning Size', 
+        'Rows Removed',
+        'Data Retention Rate (%)'
+    ],
+    'Value': [
+        f"{df.shape[0]:,}",
+        f"{df_clean.shape[0]:,}",
+        f"{df.shape[0] - df_clean.shape[0]:,}",
+        f"{(df_clean.shape[0] / df.shape[0] * 100):.2f}%"
+    ]
+})
+
+display(create_pretty_table(cleaning_summary, "Data Cleaning Summary"))
+```
+
+### Financial Metrics by Churn Status
+
+```{python}
+# Key metrics by churn status
+financial_metrics = df_clean.groupby('Churn').agg({
+    'MonthlyCharges': ['mean', 'median', 'std'],
+    'TotalCharges': ['mean', 'median', 'std'],
+    'tenure': ['mean', 'median', 'std']
+}).round(2)
+
+# Reshape for better display
+financial_display = []
+for churn_status in ['No', 'Yes']:
+    for metric in ['MonthlyCharges', 'TotalCharges', 'tenure']:
+        financial_display.append({
+            'Churn Status': churn_status,
+            'Metric': metric,
+            'Mean': financial_metrics.loc[churn_status, (metric, 'mean')],
+            'Median': financial_metrics.loc[churn_status, (metric, 'median')],
+            'Std Dev': financial_metrics.loc[churn_status, (metric, 'std')]
+        })
+
+financial_df = pd.DataFrame(financial_display)
+display(create_pretty_table(financial_df, "Financial Metrics by Churn Status"))
+```
+
+### Revenue Impact Analysis
+
+```{python}
+# Revenue impact
+churned_revenue = df_clean[df_clean['Churn'] == 'Yes']['TotalCharges'].sum()
+retained_revenue = df_clean[df_clean['Churn'] == 'No']['TotalCharges'].sum()
+total_revenue = df_clean['TotalCharges'].sum()
+revenue_loss_pct = (churned_revenue / total_revenue) * 100
+
+revenue_impact = pd.DataFrame({
+    'Revenue Category': [
+        'Total Revenue from Retained Customers',
+        'Total Revenue Lost to Churn',
+        'Overall Total Revenue',
+        'Revenue Loss Percentage'
+    ],
+    'Amount': [
+        f"${retained_revenue:,.2f}",
+        f"${churned_revenue:,.2f}",
+        f"${total_revenue:,.2f}",
+        f"{revenue_loss_pct:.2f}%"
+    ],
+    'Business Impact': [
+        '✅ Secured Revenue',
+        '⚠️ Lost Revenue',
+        '📊 Total Business',
+        '🎯 Loss Rate'
+    ]
+})
+
+display(create_pretty_table(revenue_impact, "Revenue Impact Analysis"))
+```
+
+::: {.callout-important}
+## Key Financial Insights
+- **Revenue at Risk**: ${churned_revenue:,.0f} lost to churn ({revenue_loss_pct:.1f}% of total revenue)
+- **Customer Value**: Churned customers had different spending patterns than retained customers
+- **Opportunity**: Preventing churn could directly impact bottom-line revenue
+:::
+
+## Critical Risk Factors Analysis
+
+::: {.callout-note}
+## Risk Factor Analysis
+Identifying the key factors that drive customer churn helps prioritize retention efforts and business strategies.
+:::
+
+### Contract Type Impact
+
+```{python}
+# Contract type analysis (most important for churn)
+contract_churn = pd.crosstab(df_clean['Contract'], df_clean['Churn'], normalize='index') * 100
+contract_counts = df_clean['Contract'].value_counts()
+
+# Create comprehensive contract analysis
+contract_analysis = []
+for contract_type in contract_churn.index:
+    contract_analysis.append({
+        'Contract Type': contract_type,
+        'Churn Rate (%)': round(contract_churn.loc[contract_type, 'Yes'], 2),
+        'Retention Rate (%)': round(contract_churn.loc[contract_type, 'No'], 2),
+        'Customer Count': contract_counts[contract_type],
+        'Risk Level': '🔴 High' if contract_churn.loc[contract_type, 'Yes'] > 40 else '🟡 Medium' if contract_churn.loc[contract_type, 'Yes'] > 20 else '🟢 Low'
+    })
+
+contract_df = pd.DataFrame(contract_analysis)
+display(create_pretty_table(contract_df, "Contract Type vs Churn Analysis"))
+```
+
+### Tenure Segments Analysis
+
+```{python}
+# Tenure segments (very important)
+df_clean['TenureSegment'] = pd.cut(df_clean['tenure'], 
+                                   bins=[0, 12, 24, 48, 100], 
+                                   labels=['0-12 months', '13-24 months', '25-48 months', '48+ months'])
+tenure_churn = pd.crosstab(df_clean['TenureSegment'], df_clean['Churn'], normalize='index') * 100
+tenure_counts = df_clean['TenureSegment'].value_counts()
+
+# Create tenure analysis
+tenure_analysis = []
+for segment in tenure_churn.index:
+    tenure_analysis.append({
+        'Tenure Segment': segment,
+        'Churn Rate (%)': round(tenure_churn.loc[segment, 'Yes'], 2),
+        'Customer Count': tenure_counts[segment],
+        'Business Stage': 'New Customer' if '0-12' in segment else 'Established' if '13-24' in segment else 'Loyal Customer',
+        'Priority': '🔥 Critical' if tenure_churn.loc[segment, 'Yes'] > 40 else '⚠️ High' if tenure_churn.loc[segment, 'Yes'] > 25 else '✅ Stable'
+    })
+
+tenure_df = pd.DataFrame(tenure_analysis)
+display(create_pretty_table(tenure_df, "Tenure Segments vs Churn Analysis"))
+```
+
+### Payment Method Impact
+
+```{python}
+# Payment method (critical factor)
+payment_churn = pd.crosstab(df_clean['PaymentMethod'], df_clean['Churn'], normalize='index') * 100
+payment_counts = df_clean['PaymentMethod'].value_counts()
+
+payment_analysis = []
+for payment_method in payment_churn.index:
+    payment_analysis.append({
+        'Payment Method': payment_method,
+        'Churn Rate (%)': round(payment_churn.loc[payment_method, 'Yes'], 2),
+        'Customer Count': payment_counts[payment_method],
+        'Risk Assessment': '🔴 High Risk' if payment_churn.loc[payment_method, 'Yes'] > 35 else '🟡 Medium Risk' if payment_churn.loc[payment_method, 'Yes'] > 20 else '🟢 Low Risk'
+    })
+
+payment_df = pd.DataFrame(payment_analysis)
+display(create_pretty_table(payment_df, "Payment Method vs Churn Analysis"))
+```
+
+### Internet Service Analysis
+
+```{python}
+# Internet Service (key differentiator)
+internet_churn = pd.crosstab(df_clean['InternetService'], df_clean['Churn'], normalize='index') * 100
+internet_counts = df_clean['InternetService'].value_counts()
+
+internet_analysis = []
+for service_type in internet_churn.index:
+    internet_analysis.append({
+        'Internet Service': service_type,
+        'Churn Rate (%)': round(internet_churn.loc[service_type, 'Yes'], 2),
+        'Customer Count': internet_counts[service_type],
+        'Service Quality': 'Premium' if service_type == 'Fiber optic' else 'Standard' if service_type == 'DSL' else 'No Service'
+    })
+
+internet_df = pd.DataFrame(internet_analysis)
+display(create_pretty_table(internet_df, "Internet Service vs Churn Analysis"))
+```
+
+::: {.callout-warning}
+## Critical Risk Factors Identified
+1. **Contract Type**: Month-to-month contracts show significantly higher churn rates
+2. **Customer Tenure**: New customers (0-12 months) are at highest risk
+3. **Payment Method**: Electronic check users demonstrate elevated churn rates
+4. **Service Type**: Fiber optic customers may have different retention patterns
+:::
+
+## Customer Lifecycle Patterns Analysis
+
+### Detailed Churn by Tenure
+
+```{python}
+# Step 6: Customer Lifecycle Patterns Analysis
+print("=== CUSTOMER LIFECYCLE PATTERNS ===")
+
+# 1. Churn by Tenure Distribution (detailed view)
+print("\n--- DETAILED CHURN BY TENURE MONTHS ---")
+tenure_detailed = df_clean.groupby('tenure').agg({
+    'Churn': ['count', lambda x: (x == 'Yes').sum(), lambda x: (x == 'Yes').mean() * 100]
+}).round(2)
+tenure_detailed.columns = ['Total_Customers', 'Churned_Customers', 'Churn_Rate_%']
+
+# Show critical early months
+print("High-Risk Early Months (0-12):")
+early_months = tenure_detailed[tenure_detailed.index <= 12].sort_values('Churn_Rate_%', ascending=False)
+print(early_months.head(10))
+
+print(f"\nAverage churn rate in first 12 months: {tenure_detailed[tenure_detailed.index <= 12]['Churn_Rate_%'].mean():.2f}%")
+print(f"Average churn rate after 12 months: {tenure_detailed[tenure_detailed.index > 12]['Churn_Rate_%'].mean():.2f}%")
+```
+
+### Lifecycle Patterns by Customer Type
+
+```{python}
+# 2. Lifecycle patterns by customer type
+print("\n--- LIFECYCLE PATTERNS BY CUSTOMER TYPE ---")
+
+# New vs Established customers financial behavior
+print("New Customers (0-12 months) vs Established (13+ months):")
+df_clean['CustomerType'] = df_clean['tenure'].apply(lambda x: 'New (0-12m)' if x <= 12 else 'Established (13+m)')
+
+lifecycle_metrics = df_clean.groupby(['CustomerType', 'Churn']).agg({
+    'MonthlyCharges': ['mean', 'count'],
+    'TotalCharges': 'mean',
+    'tenure': 'mean'
+}).round(2)
+
+print(lifecycle_metrics)
+
+# Critical transition periods
+print("\n--- CRITICAL TRANSITION PERIODS ---")
+df_clean['LifecycleStage'] = pd.cut(df_clean['tenure'], 
+                                   bins=[0, 3, 6, 12, 24, 100], 
+                                   labels=['0-3m (Onboarding)', '4-6m (Early)', '7-12m (Stabilizing)', 
+                                          '13-24m (Established)', '24+m (Loyal)'])
+
+transition_analysis = pd.crosstab(df_clean['LifecycleStage'], df_clean['Churn'], normalize='index') * 100
+print("Churn Rate by Lifecycle Stage:")
+print(transition_analysis.round(2))
+
+# Show customer counts in each stage
+stage_counts = df_clean['LifecycleStage'].value_counts().sort_index()
+print(f"\nCustomer Distribution by Lifecycle Stage:")
+for stage, count in stage_counts.items():
+    pct = (count / len(df_clean)) * 100
+    print(f"{stage}: {count} customers ({pct:.1f}%)")
+```
+
+### Understanding Tenure in Telco Context
+
+```{python}
+# What is TENURE? - Detailed Explanation
+print("=== UNDERSTANDING TENURE IN TELCO CONTEXT ===")
+
+print("TENURE = Number of MONTHS a customer has been with the company")
+print("It represents customer relationship duration/loyalty length")
+
+print(f"\nTenure Statistics in our dataset:")
+print(f"Minimum tenure: {df_clean['tenure'].min()} months")
+print(f"Maximum tenure: {df_clean['tenure'].max()} months") 
+print(f"Average tenure: {df_clean['tenure'].mean():.1f} months")
+print(f"Median tenure: {df_clean['tenure'].median()} months")
+
+print(f"\nTenure Distribution:")
+tenure_dist = df_clean['tenure'].value_counts().sort_index()
+print(f"Customers with 1 month tenure: {tenure_dist.get(1, 0)} customers")
+print(f"Customers with 12 months tenure: {tenure_dist.get(12, 0)} customers") 
+print(f"Customers with 24 months tenure: {tenure_dist.get(24, 0)} customers")
+print(f"Customers with 60+ months tenure: {len(df_clean[df_clean['tenure'] >= 60])} customers")
+
+print(f"\nBusiness Interpretation:")
+print("- Low tenure (0-6 months) = New customers, high churn risk")
+print("- Medium tenure (6-24 months) = Stabilizing customers") 
+print("- High tenure (24+ months) = Loyal/established customers, low churn risk")
+print("- Very high tenure (48+ months) = Very loyal customers, lowest churn risk")
+```
+
+### Why Tenure is Critical for Churn Analysis
+
+```{python}
+# Why TENURE is Critical for Churn Analysis
+print("\n=== WHY TENURE IS THE #1 PREDICTOR OF CHURN ===")
+
+print("1. RELATIONSHIP STRENGTH:")
+print("   - Higher tenure = Stronger relationship with company")
+print("   - Customer has invested time learning services")
+print("   - Switching costs increase with tenure")
+
+print(f"\n2. CHURN RISK BY TENURE RANGE:")
+# Calculate churn rates by tenure ranges
+tenure_ranges = [
+    (1, 1, "Brand New (1 month)"),
+    (1, 3, "Onboarding (1-3 months)"), 
+    (4, 6, "Early Stage (4-6 months)"),
+    (7, 12, "Stabilizing (7-12 months)"),
+    (13, 24, "Established (13-24 months)"),
+    (25, 48, "Loyal (25-48 months)"),
+    (49, 72, "Very Loyal (49+ months)")
+]
+
+for min_t, max_t, label in tenure_ranges:
+    subset = df_clean[(df_clean['tenure'] >= min_t) & (df_clean['tenure'] <= max_t)]
+    if len(subset) > 0:
+        churn_rate = (subset['Churn'] == 'Yes').mean() * 100
+        count = len(subset)
+        print(f"   {label}: {churn_rate:.1f}% churn rate ({count} customers)")
+
+print(f"\n3. FINANCIAL IMPACT BY TENURE:")
+print("   - New customers (low tenure): High acquisition cost, high churn risk")
+print("   - Established customers (high tenure): Lower churn risk, higher lifetime value")
+
+# Show the financial pattern
+tenure_financial = df_clean.groupby(pd.cut(df_clean['tenure'], bins=[0, 12, 24, 48, 72])).agg({
+    'TotalCharges': 'mean',
+    'MonthlyCharges': 'mean',
+    'Churn': lambda x: (x == 'Yes').mean() * 100
+}).round(2)
+tenure_financial.columns = ['Avg_TotalCharges', 'Avg_MonthlyCharges', 'Churn_Rate_%']
+print(f"\nFinancial Patterns by Tenure Groups:")
+print(tenure_financial)
+```
+
+### Practical Business Implications
+
+::: {.callout-important}
+## Strategic Business Insights
+The tenure analysis reveals critical intervention opportunities and customer lifecycle patterns.
+:::
+
+```{python}
+# Calculate key business metrics
+early_customers = df_clean[df_clean['tenure'] <= 12]
+established_customers = df_clean[df_clean['tenure'] > 12]
+
+early_revenue_per_customer = early_customers['TotalCharges'].mean()
+established_revenue_per_customer = established_customers['TotalCharges'].mean()
+retention_multiplier = established_revenue_per_customer / early_revenue_per_customer
+
+# Calculate churn rates by key periods
+early_churn_rate = (early_customers['Churn'] == 'Yes').mean() * 100
+established_churn_rate = (established_customers['Churn'] == 'Yes').mean() * 100
+
+# Create business implications table
+business_implications = pd.DataFrame({
+    'Customer Segment': ['Early Stage (≤12 months)', 'Established (>12 months)'],
+    'Churn Rate (%)': [f"{early_churn_rate:.1f}%", f"{established_churn_rate:.1f}%"],
+    'Avg Lifetime Value': [f"${early_revenue_per_customer:.0f}", f"${established_revenue_per_customer:.0f}"],
+    'Customer Count': [len(early_customers), len(established_customers)],
+    'Revenue Impact': ['High Risk', 'Stable Revenue'],
+    'Strategic Priority': ['🔥 Critical Focus', '✅ Maintain & Grow']
+})
+
+display(create_pretty_table(business_implications, "Customer Lifecycle Business Impact"))
+
+# Strategic focus areas
+strategic_actions = pd.DataFrame({
+    'Time Period': [
+        'Onboarding (0-3 months)',
+        'Early Engagement (3-12 months)', 
+        '12-Month Milestone',
+        'Long-term Loyalty (24+ months)'
+    ],
+    'Current Challenge': [
+        'High initial churn risk',
+        'Service adoption issues',
+        'Critical retention point',
+        'Maintain satisfaction'
+    ],
+    'Target Improvement': [
+        'Reduce 57% → 30% churn',
+        'Reduce 35% → 20% churn',
+        'Increase 12m+ survival rate',
+        'Maintain <20% churn'
+    ],
+    'Recommended Actions': [
+        'Intensive onboarding program',
+        'Proactive engagement campaigns',
+        'Loyalty program enrollment',
+        'Premium service offerings'
+    ]
+})
+
+display(create_pretty_table(strategic_actions, "Strategic Action Plan by Customer Lifecycle Stage"))
+```
+
+::: {.callout-tip}
+## Key Business Opportunities
+- **Revenue Multiplier**: Customers who survive past 12 months generate **{retention_multiplier:.1f}x more lifetime value**
+- **Critical Period**: First 90 days represent the highest-impact intervention opportunity
+- **ROI Focus**: Retention efforts should prioritize new customer onboarding and 12-month milestone achievement
+:::
+
+# Service Combinations Analysis
+
+## Cleaning Duplicated Data
+
+There are some categories with redundant unique values. We'll standardize each one with Yes or No.
+
+```{python}
+# Define the service columns (excluding basic demographics and billing)
+service_columns = [
+    'PhoneService', 'MultipleLines', 'InternetService', 'OnlineSecurity', 
+    'OnlineBackup', 'DeviceProtection', 'TechSupport', 'StreamingTV', 'StreamingMovies'
+] 
+
+for service in service_columns:
+    distinct = df_clean[service].unique() 
+    print(f"=== SERVICE: {service}: Distinct Values: {distinct}") 
+
+#Replacing Values - Fix the data cleaning issue
+df_clean['MultipleLines'] = df_clean['MultipleLines'].replace({'No phone service': 'No'})
+
+for service in service_columns[3:]:
+    df_clean[service] = df_clean[service].replace({'No internet service': 'No'})
+```
+
+## Service Analysis with Distribution Percentage
+
+```{python}
+# Enhanced Service Analysis with Distribution Percentages
+print("\n--- ENHANCED SERVICE ANALYSIS WITH CUSTOMER DISTRIBUTION ---")
+
+# First, calculate churn rates for each service (this was missing!)
+service_churn_rates = {}
+for service in service_columns:
+    churn_by_service = pd.crosstab(df_clean[service], df_clean['Churn'], normalize='index') * 100
+    service_churn_rates[service] = churn_by_service
+
+# Create a more detailed visualization showing both churn rates and customer distribution
+fig, axes = plt.subplots(3, 3, figsize=(20, 16))
+fig.suptitle('Service Impact Analysis: Churn Rate + Customer Distribution', fontsize=18, fontweight='bold', y=0.98)
+
+for idx, service in enumerate(service_columns):
+    row = idx // 3
+    col = idx % 3
+    ax = axes[row, col]
+    
+    # Get churn rates and customer counts for this service
+    churn_data = service_churn_rates[service]
+    service_counts = df_clean[service].value_counts()
+    service_distribution = df_clean[service].value_counts(normalize=True) * 100
+    
+    # Create bar plot with custom colors
+    x_pos = range(len(churn_data.index))
+    colors = ['lightcoral' if churn_data['Yes'].iloc[i] > 25 else 'lightblue' for i in range(len(churn_data.index))]
+    bars = ax.bar(x_pos, churn_data['Yes'], color=colors, alpha=0.8, edgecolor='black', linewidth=1)
+    
+    # Add labels and annotations
+    for i, bar in enumerate(bars):
+        height = bar.get_height()
+        service_option = churn_data.index[i]
+        
+        # Churn rate above the bar
+        ax.text(bar.get_x() + bar.get_width()/2., height + 1,
+                f'Churn: {height:.1f}%', ha='center', va='bottom', 
+                fontweight='bold', fontsize=11, color='darkred')
+        
+        # Customer count and distribution inside/below the bar
+        customer_count = service_counts[service_option]
+        distribution_pct = service_distribution[service_option]
+        
+        # Inside the bar
+        ax.text(bar.get_x() + bar.get_width()/2., height/2,
+                f'{distribution_pct:.1f}%\n({customer_count:,} customers)', 
+                ha='center', va='center', fontweight='bold', fontsize=10, 
+                color='white' if height > 15 else 'black',
+                bbox=dict(boxstyle='round,pad=0.2', facecolor='navy', alpha=0.7))
+    
+    # Styling
+    ax.set_title(f'{service}', fontweight='bold', fontsize=14, pad=20)
+    ax.set_ylabel('Churn Rate (%)', fontweight='bold')
+    ax.set_xlabel('Service Option', fontweight='bold')
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(churn_data.index, rotation=45, ha='right')
+    ax.grid(axis='y', alpha=0.3, linestyle='--')
+    ax.set_ylim(0, max(churn_data['Yes']) * 1.2)
+
+plt.tight_layout()
+plt.subplots_adjust(top=0.93)
+plt.show()
+
+# Print detailed analysis
+print(f"\n🔍 DETAILED SERVICE IMPACT ANALYSIS:")
+print("="*60)
+for service in service_columns:
+    print(f"\n📊 {service.upper()}:")
+    churn_data = service_churn_rates[service]
+    service_counts = df_clean[service].value_counts()
+    service_distribution = df_clean[service].value_counts(normalize=True) * 100
+    
+    for option in churn_data.index:
+        churn_rate = churn_data.loc[option, 'Yes']
+        customer_count = service_counts[option]
+        distribution = service_distribution[option]
+        
+        print(f"  • {option}: {churn_rate:.1f}% churn rate | {distribution:.1f}% of customers ({customer_count:,} people)")
+    
+    # Find the best and worst options
+    best_option = churn_data['Yes'].idxmin()
+    worst_option = churn_data['Yes'].idxmax()
+    impact = churn_data['Yes'].max() - churn_data['Yes'].min()
+    
+    print(f"  ✅ Best: '{best_option}' ({churn_data.loc[best_option, 'Yes']:.1f}% churn)")
+    print(f"  ⚠️  Worst: '{worst_option}' ({churn_data.loc[worst_option, 'Yes']:.1f}% churn)")
+    print(f"  📈 Impact: {impact:.1f} percentage points difference")
+```
+
+## Service Bundle Analysis
+
+```{python}
+# Service Combinations Analysis - Which bundles prevent churn best?
+print("\n" + "="*70)
+print("🎯 SERVICE COMBINATIONS ANALYSIS")
+print("="*70)
+
+# Define security/support bundle (most protective services)
+df_clean['SecurityBundle'] = ((df_clean['OnlineSecurity'] == 'Yes') & 
+                             (df_clean['OnlineBackup'] == 'Yes') & 
+                             (df_clean['DeviceProtection'] == 'Yes') & 
+                             (df_clean['TechSupport'] == 'Yes')).astype(int)
+
+# Define online bundle (online services only)
+df_clean['OnlinePerksBundle'] = ((df_clean['OnlineSecurity'] == 'Yes') & 
+                             (df_clean['OnlineBackup'] == 'Yes')).astype(int)
+
+#Define Support and Protection Bundle 
+df_clean['BasicSupportBundle'] = ((df_clean['DeviceProtection'] == 'Yes') & 
+                             (df_clean['TechSupport'] == 'Yes')).astype(int)
+
+# Define streaming bundle
+df_clean['StreamingBundle'] = ((df_clean['StreamingTV'] == 'Yes') & 
+                              (df_clean['StreamingMovies'] == 'Yes')).astype(int)
+
+# Define premium package (fiber + security + streaming)
+df_clean['PremiumPackage'] = ((df_clean['InternetService'] == 'Fiber optic') & 
+                             (df_clean['SecurityBundle'] == 1) & 
+                             (df_clean['StreamingBundle'] == 1)).astype(int)
+
+# Analyze bundle impact
+bundle_columns = ['SecurityBundle', 'StreamingBundle', 'PremiumPackage', 'OnlinePerksBundle', 'BasicSupportBundle']
+bundle_names = ['Security Bundle\n(Security+Backup+Protection+Support)', 
+                'Streaming Bundle\n(TV+Movies)', 
+                'Premium Package\n(Fiber+Security+Streaming)',
+                'Online Perks Bundle\n(Security + Backup)',
+                'Basic Support Bundle\n(Support + Protection)'
+                ]
+
+# Create bundle analysis visualization
+fig, axes = plt.subplots(3, 2, figsize=(18, 15))
+fig.suptitle('Service Bundle Impact on Churn Prevention', fontsize=16, fontweight='bold')
+
+# Hide the empty 6th subplot (bottom right)
+axes[2, 1].set_visible(False)
+
+for idx, (bundle_col, bundle_name) in enumerate(zip(bundle_columns, bundle_names)):
+    row = idx // 2
+    col = idx % 2
+    ax = axes[row, col]
+    
+    # Calculate churn rates for bundle vs no bundle
+    bundle_churn = pd.crosstab(df_clean[bundle_col], df_clean['Churn'], normalize='index') * 100
+    bundle_counts = df_clean[bundle_col].value_counts()
+    bundle_distribution = df_clean[bundle_col].value_counts(normalize=True) * 100
+    
+    # Create bar plot
+    x_labels = ['No Bundle', 'Has Bundle']
+    x_pos = [0, 1]
+    colors = ['lightcoral', 'lightgreen']
+    
+    bars = ax.bar(x_pos, bundle_churn['Yes'], color=colors, alpha=0.8, edgecolor='black', linewidth=1)
+    
+    # Add labels
+    for i, bar in enumerate(bars):
+        height = bar.get_height()
+        bundle_status = bundle_churn.index[i]
+        
+        # Churn rate above bar
+        ax.text(bar.get_x() + bar.get_width()/2., height + 1,
+                f'{height:.1f}%', ha='center', va='bottom', 
+                fontweight='bold', fontsize=12, color='darkred')
+        
+        # Customer distribution inside bar
+        customer_count = bundle_counts[bundle_status]
+        distribution_pct = bundle_distribution[bundle_status]
+        
+        ax.text(bar.get_x() + bar.get_width()/2., height/2,
+                f'{distribution_pct:.1f}%\n({customer_count:,} customers)', 
+                ha='center', va='center', fontweight='bold', fontsize=10, 
+                color='white', bbox=dict(boxstyle='round,pad=0.3', facecolor='navy', alpha=0.8))
+    
+    # Calculate savings
+    churn_reduction = bundle_churn.loc[0, 'Yes'] - bundle_churn.loc[1, 'Yes']
+    ax.text(0.5, max(bundle_churn['Yes']) * 0.85, 
+            f'Churn Reduction:\n{churn_reduction:.1f} percentage points', 
+            ha='center', va='center', fontsize=11, fontweight='bold',
+            bbox=dict(boxstyle='round,pad=0.5', facecolor='yellow', alpha=0.7))
+    
+    ax.set_title(bundle_name, fontweight='bold', fontsize=12)
+    ax.set_ylabel('Churn Rate (%)', fontweight='bold')
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(x_labels)
+    ax.grid(axis='y', alpha=0.3)
+    ax.set_ylim(0, max(bundle_churn['Yes']) * 1.1)
+
+plt.tight_layout()
+plt.show()
+
+# Print bundle analysis summary
+print(f"\n📊 BUNDLE EFFECTIVENESS SUMMARY:")
+print("-" * 50)
+
+for bundle_col, bundle_name in zip(bundle_columns, bundle_names):
+    bundle_churn = pd.crosstab(df_clean[bundle_col], df_clean['Churn'], normalize='index') * 100
+    bundle_counts = df_clean[bundle_col].value_counts()
+    
+    no_bundle_churn = bundle_churn.loc[0, 'Yes']
+    has_bundle_churn = bundle_churn.loc[1, 'Yes'] if 1 in bundle_churn.index else 0
+    churn_reduction = no_bundle_churn - has_bundle_churn
+    
+    customers_with_bundle = bundle_counts.get(1, 0)
+    total_customers = len(df_clean)
+    adoption_rate = (customers_with_bundle / total_customers) * 100
+    
+    print(f"\n🎯 {bundle_name.replace(chr(10), ' ')}:")
+    print(f"   • Adoption Rate: {adoption_rate:.1f}% ({customers_with_bundle:,} customers)")
+    print(f"   • Without Bundle: {no_bundle_churn:.1f}% churn")
+    print(f"   • With Bundle: {has_bundle_churn:.1f}% churn")
+    print(f"   • Churn Reduction: {churn_reduction:.1f} percentage points")
+    print(f"   • Effectiveness: {((churn_reduction/no_bundle_churn)*100):.1f}% improvement")
+```
+
+# Demographic + Service Combinations Analysis
+
+::: {.callout-note}
+## Advanced Analysis Focus
+Understanding how customer demographics interact with service usage patterns provides deeper insights for targeted retention strategies and personalized service offerings.
+:::
+
+## Understanding How Customer Demographics Interact with Service Usage Patterns
+
+<details>
+<summary>Click to view demographic + service combinations setup</summary>
+
+```{python}
+# Demographic + Service Combinations Setup
+print("=== DEMOGRAPHIC + SERVICE COMBINATIONS ANALYSIS ===")
+print("Analyzing how different customer demographics interact with service usage patterns")
+
+# First, ensure we have all necessary demographic variables
+# Create SeniorCitizen_Label if not exists
+if 'SeniorCitizen_Label' not in df_clean.columns:
+    df_clean['SeniorCitizen_Label'] = df_clean['SeniorCitizen'].map({0: 'No', 1: 'Yes'})
+
+# Create LifeStage variable if not exists
+if 'LifeStage' not in df_clean.columns:
+    def determine_life_stage(row):
+        if row['SeniorCitizen'] == 1:
+            return 'Senior Individual' if row['Partner'] == 'No' else 'Senior Couple'
+        else:
+            if row['Partner'] == 'No':
+                return 'Young Individual'
+            elif row['Dependents'] == 'Yes':
+                return 'Young Family'
+            else:
+                return 'Young Couple'
+    
+    df_clean['LifeStage'] = df_clean.apply(determine_life_stage, axis=1)
+
+# Create service bundle variables if not exist
+bundle_definitions = {
+    'SecurityBundle': ['OnlineSecurity', 'OnlineBackup', 'DeviceProtection'],
+    'StreamingBundle': ['StreamingTV', 'StreamingMovies'], 
+    'OnlinePerksBundle': ['OnlineSecurity', 'OnlineBackup', 'TechSupport'],
+    'BasicSupportBundle': ['TechSupport', 'DeviceProtection']
+}
+
+for bundle_name, services in bundle_definitions.items():
+    if bundle_name not in df_clean.columns:
+        df_clean[bundle_name] = (df_clean[services] == 'Yes').sum(axis=1).apply(lambda x: 1 if x >= len(services) else 0)
+
+# Define the service features we'll analyze
+service_features = ['PhoneService', 'MultipleLines', 'InternetService', 'OnlineSecurity', 
+                   'OnlineBackup', 'DeviceProtection', 'TechSupport', 'StreamingTV', 'StreamingMovies']
+
+demographic_features = ['gender', 'SeniorCitizen_Label', 'Partner', 'Dependents', 'LifeStage']
+
+print(f"\n📊 Analysis Scope:")
+print(f"   • Service Features: {len(service_features)} services")
+print(f"   • Demographic Features: {len(demographic_features)} demographics")
+print(f"   • Total Customers: {len(df_clean):,}")
+print(f"   • Focus: Understanding interaction effects on churn")
+print(f"   • Life Stages: {sorted(df_clean['LifeStage'].unique())}")
+```
+
+</details>
+
+## Service Adoption by Life Stage
+
+::: {.callout-tip}
+## Life Stage Service Preferences
+Different customer life stages show distinct service adoption patterns, revealing opportunities for targeted service bundles and marketing strategies.
+:::
+
+```{python}
+# Service Adoption Patterns by Life Stage
+print("=== SERVICE ADOPTION BY LIFE STAGE ===")
+
+# Calculate service adoption rates by life stage
+life_stages = df_clean['LifeStage'].unique()
+services_to_analyze = ['InternetService', 'OnlineSecurity', 'OnlineBackup', 'DeviceProtection', 
+                      'TechSupport', 'StreamingTV', 'StreamingMovies']
+
+# Create a comprehensive service adoption analysis
+service_adoption_by_lifestage = {}
+
+for life_stage in life_stages:
+    life_stage_customers = df_clean[df_clean['LifeStage'] == life_stage]
+    adoption_rates = {}
+    
+    for service in services_to_analyze:
+        if service == 'InternetService':
+            # For InternetService, we'll look at Fiber optic adoption
+            adoption_rate = (life_stage_customers[service] == 'Fiber optic').mean() * 100
+            adoption_rates[f'{service}_Fiber'] = adoption_rate
+            adoption_rate_dsl = (life_stage_customers[service] == 'DSL').mean() * 100
+            adoption_rates[f'{service}_DSL'] = adoption_rate_dsl
+        else:
+            # For other services, look at "Yes" adoption
+            adoption_rate = (life_stage_customers[service] == 'Yes').mean() * 100
+            adoption_rates[service] = adoption_rate
+    
+    service_adoption_by_lifestage[life_stage] = adoption_rates
+
+# Create visualization
+fig, axes = plt.subplots(2, 3, figsize=(20, 12))
+fig.suptitle('Service Adoption Patterns by Life Stage', fontsize=16, fontweight='bold')
+
+# Flatten axes for easier iteration
+axes_flat = axes.flatten()
+
+services_to_plot = ['InternetService_Fiber', 'OnlineSecurity', 'StreamingTV', 
+                   'DeviceProtection', 'TechSupport', 'OnlineBackup']
+
+for idx, service in enumerate(services_to_plot):
+    ax = axes_flat[idx]
+    
+    # Get adoption rates for this service across life stages
+    life_stage_names = []
+    adoption_rates = []
+    
+    for life_stage in life_stages:
+        life_stage_names.append(life_stage)
+        adoption_rates.append(service_adoption_by_lifestage[life_stage].get(service, 0))
+    
+    # Create bar plot
+    colors = plt.cm.Set3(range(len(life_stage_names)))
+    bars = ax.bar(range(len(life_stage_names)), adoption_rates, color=colors, alpha=0.8, edgecolor='black')
+    
+    # Add labels
+    for i, bar in enumerate(bars):
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height + 1,
+                f'{height:.1f}%', ha='center', va='bottom', 
+                fontweight='bold', fontsize=10, color='darkred')
+    
+    ax.set_title(service.replace('_', ' '), fontweight='bold', fontsize=12)
+    ax.set_ylabel('Adoption Rate (%)', fontweight='bold')
+    ax.set_xticks(range(len(life_stage_names)))
+    ax.set_xticklabels(life_stage_names, rotation=45, ha='right')
+    ax.grid(axis='y', alpha=0.3)
+    ax.set_ylim(0, max(adoption_rates) * 1.2)
+
+plt.tight_layout()
+plt.show()
+
+# Print detailed analysis
+print(f"\n📊 SERVICE ADOPTION ANALYSIS BY LIFE STAGE:")
+print("="*80)
+
+for life_stage in life_stages:
+    life_stage_count = len(df_clean[df_clean['LifeStage'] == life_stage])
+    print(f"\n🎯 {life_stage.upper()} ({life_stage_count:,} customers):")
+    
+    adoption_data = service_adoption_by_lifestage[life_stage]
+    
+    # Sort services by adoption rate
+    sorted_services = sorted(adoption_data.items(), key=lambda x: x[1], reverse=True)
+    
+    for service, rate in sorted_services:
+        if rate > 50:
+            trend = "🟢 High Adoption"
+        elif rate > 25:
+            trend = "🟡 Medium Adoption"
+        else:
+            trend = "🔴 Low Adoption"
+        
+        print(f"   • {service.replace('_', ' ')}: {rate:.1f}% - {trend}")
+
+print(f"\n💡 KEY INSIGHTS:")
+print(f"   • Different life stages show distinct service preferences")
+print(f"   • Young families may prefer different services than seniors")
+print(f"   • Service bundles should be tailored to life stage needs")
+```
+
+## Demographic-Specific Service Bundle Effectiveness
+
+::: {.callout-important}
+## Bundle Performance Varies by Demographics
+Service bundles show dramatically different effectiveness across customer demographics, with some combinations reducing churn by over 30 percentage points.
+:::
+
+```{python}
+# Service Bundle Effectiveness by Demographics
+print("=== SERVICE BUNDLE EFFECTIVENESS BY DEMOGRAPHICS ===")
+
+# Analyze how service bundles perform differently across demographic groups
+bundles_to_analyze = ['SecurityBundle', 'StreamingBundle', 'OnlinePerksBundle', 'BasicSupportBundle']
+
+# Create analysis for each demographic + bundle combination
+demographic_bundle_analysis = {}
+
+for demographic in ['LifeStage', 'SeniorCitizen_Label', 'Partner', 'Dependents']:
+    demographic_bundle_analysis[demographic] = {}
+    
+    for bundle in bundles_to_analyze:
+        demo_bundle_results = {}
+        
+        for demo_value in df_clean[demographic].unique():
+            demo_customers = df_clean[df_clean[demographic] == demo_value]
+            
+            # Calculate churn rates for customers with and without the bundle
+            bundle_effectiveness = {}
+            
+            # Customers with bundle
+            with_bundle = demo_customers[demo_customers[bundle] == 1]
+            without_bundle = demo_customers[demo_customers[bundle] == 0]
+            
+            if len(with_bundle) > 10 and len(without_bundle) > 10:  # Minimum sample size
+                churn_with_bundle = (with_bundle['Churn'] == 'Yes').mean() * 100
+                churn_without_bundle = (without_bundle['Churn'] == 'Yes').mean() * 100
+                churn_reduction = churn_without_bundle - churn_with_bundle
+                
+                bundle_effectiveness = {
+                    'with_bundle_churn': churn_with_bundle,
+                    'without_bundle_churn': churn_without_bundle,
+                    'churn_reduction': churn_reduction,
+                    'customers_with_bundle': len(with_bundle),
+                    'customers_without_bundle': len(without_bundle),
+                    'bundle_adoption_rate': (len(with_bundle) / len(demo_customers)) * 100
+                }
+            
+            demo_bundle_results[demo_value] = bundle_effectiveness
+        
+        demographic_bundle_analysis[demographic][bundle] = demo_bundle_results
+
+# Visualize the most interesting findings
+print(f"\n🎯 BUNDLE EFFECTIVENESS BY LIFE STAGE:")
+print("="*70)
+
+life_stage_bundle_data = demographic_bundle_analysis['LifeStage']
+
+# Create a comprehensive visualization
+fig, axes = plt.subplots(2, 2, figsize=(18, 12))
+fig.suptitle('Service Bundle Effectiveness by Life Stage', fontsize=16, fontweight='bold')
+
+axes_flat = axes.flatten()
+
+for idx, bundle in enumerate(bundles_to_analyze):
+    ax = axes_flat[idx]
+    bundle_data = life_stage_bundle_data[bundle]
+    
+    life_stages_with_data = [ls for ls in life_stages if bundle_data.get(ls) and bundle_data[ls]]
+    churn_reductions = [bundle_data[ls]['churn_reduction'] for ls in life_stages_with_data if bundle_data[ls]]
+    
+    if churn_reductions:
+        colors = ['lightgreen' if cr > 0 else 'lightcoral' for cr in churn_reductions]
+        bars = ax.bar(range(len(life_stages_with_data)), churn_reductions, 
+                     color=colors, alpha=0.8, edgecolor='black')
+        
+        # Add labels
+        for i, bar in enumerate(bars):
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height + (0.5 if height > 0 else -1),
+                    f'{height:.1f}pp', ha='center', va='bottom' if height > 0 else 'top', 
+                    fontweight='bold', fontsize=10, color='darkgreen' if height > 0 else 'darkred')
+        
+        ax.set_title(bundle.replace('Bundle', ' Bundle'), fontweight='bold', fontsize=12)
+        ax.set_ylabel('Churn Reduction (percentage points)', fontweight='bold')
+        ax.set_xticks(range(len(life_stages_with_data)))
+        ax.set_xticklabels(life_stages_with_data, rotation=45, ha='right')
+        ax.grid(axis='y', alpha=0.3)
+        ax.axhline(y=0, color='black', linestyle='-', alpha=0.5)
+
+plt.tight_layout()
+plt.show()
+
+# Print detailed analysis
+for life_stage in life_stages:
+    print(f"\n🎯 {life_stage.upper()}:")
+    
+    life_stage_customers = df_clean[df_clean['LifeStage'] == life_stage]
+    life_stage_churn = (life_stage_customers['Churn'] == 'Yes').mean() * 100
+    
+    print(f"   📊 Base Churn Rate: {life_stage_churn:.1f}%")
+    print(f"   📦 Bundle Effectiveness:")
+    
+    for bundle in bundles_to_analyze:
+        bundle_data = life_stage_bundle_data[bundle].get(life_stage, {})
+        
+        if bundle_data:
+            reduction = bundle_data['churn_reduction']
+            adoption = bundle_data['bundle_adoption_rate']
+            
+            if reduction > 5:
+                effectiveness = "🟢 Highly Effective"
+            elif reduction > 0:
+                effectiveness = "🟡 Moderately Effective"
+            else:
+                effectiveness = "🔴 Not Effective"
+            
+            print(f"      • {bundle.replace('Bundle', '')}: {reduction:.1f}pp reduction, {adoption:.1f}% adoption - {effectiveness}")
+
+print(f"\n💡 KEY DEMOGRAPHIC + SERVICE INSIGHTS:")
+print(f"   • Service bundles show different effectiveness across life stages")
+print(f"   • Some demographics benefit more from specific service combinations")
+print(f"   • Targeted bundle recommendations can improve retention")
+print(f"   • Life stage-specific service strategies are needed")
+```
+
+## Service Usage Patterns by Gender and Age
+
+::: {.callout-warning}
+## Gender and Age Impact Service Preferences
+Senior customers show significantly different service adoption patterns, with much higher preference for fiber optic internet and streaming services compared to younger demographics.
+:::
+
+```{python}
+# Service Usage Patterns by Gender and Age
+print("=== SERVICE USAGE BY GENDER AND AGE ===")
+
+# Analyze service preferences by gender and senior status
+gender_age_combinations = [
+    ('Female', 'No'), ('Female', 'Yes'),
+    ('Male', 'No'), ('Male', 'Yes')
+]
+
+# Calculate service usage for each combination
+service_usage_matrix = {}
+
+services_for_analysis = ['InternetService', 'OnlineSecurity', 'OnlineBackup', 
+                        'DeviceProtection', 'TechSupport', 'StreamingTV', 'StreamingMovies']
+
+for gender, senior_status in gender_age_combinations:
+    combo_name = f"{gender} {'Senior' if senior_status == 'Yes' else 'Non-Senior'}"
+    customers = df_clean[(df_clean['gender'] == gender) & 
+                        (df_clean['SeniorCitizen_Label'] == senior_status)]
+    
+    service_stats = {}
+    for service in services_for_analysis:
+        if service == 'InternetService':
+            # Look at internet service types
+            service_stats['Fiber_Optic'] = (customers[service] == 'Fiber optic').mean() * 100
+            service_stats['DSL'] = (customers[service] == 'DSL').mean() * 100
+            service_stats['No_Internet'] = (customers[service] == 'No').mean() * 100
+        else:
+            service_stats[service] = (customers[service] == 'Yes').mean() * 100
+    
+    # Add churn rate and customer count
+    service_stats['Churn_Rate'] = (customers['Churn'] == 'Yes').mean() * 100
+    service_stats['Customer_Count'] = len(customers)
+    
+    service_usage_matrix[combo_name] = service_stats
+
+# Create heatmap visualization
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 8))
+
+# Service adoption heatmap
+services_for_heatmap = ['Fiber_Optic', 'OnlineSecurity', 'OnlineBackup', 
+                       'DeviceProtection', 'TechSupport', 'StreamingTV', 'StreamingMovies']
+
+heatmap_data = []
+combo_labels = []
+
+for combo_name in service_usage_matrix.keys():
+    combo_labels.append(combo_name)
+    row_data = [service_usage_matrix[combo_name].get(service, 0) for service in services_for_heatmap]
+    heatmap_data.append(row_data)
+
+import numpy as np
+heatmap_array = np.array(heatmap_data)
+
+# Create heatmap
+im1 = ax1.imshow(heatmap_array, cmap='RdYlGn', aspect='auto', vmin=0, vmax=100)
+ax1.set_xticks(range(len(services_for_heatmap)))
+ax1.set_xticklabels([s.replace('_', ' ') for s in services_for_heatmap], rotation=45, ha='right')
+ax1.set_yticks(range(len(combo_labels)))
+ax1.set_yticklabels(combo_labels)
+ax1.set_title('Service Adoption Rates by Gender & Age (%)', fontweight='bold', fontsize=14)
+
+# Add text annotations
+for i in range(len(combo_labels)):
+    for j in range(len(services_for_heatmap)):
+        text = ax1.text(j, i, f'{heatmap_array[i, j]:.1f}%',
+                       ha="center", va="center", color="black", fontweight='bold')
+
+# Add colorbar
+cbar1 = plt.colorbar(im1, ax=ax1)
+cbar1.set_label('Adoption Rate (%)', rotation=270, labelpad=20)
+
+# Churn rates comparison
+churn_rates = [service_usage_matrix[combo]['Churn_Rate'] for combo in combo_labels]
+customer_counts = [service_usage_matrix[combo]['Customer_Count'] for combo in combo_labels]
+
+colors = ['lightblue', 'lightcoral', 'lightgreen', 'lightyellow']
+bars = ax2.bar(range(len(combo_labels)), churn_rates, color=colors, alpha=0.8, edgecolor='black')
+
+# Add labels
+for i, bar in enumerate(bars):
+    height = bar.get_height()
+    ax2.text(bar.get_x() + bar.get_width()/2., height + 1,
+            f'{height:.1f}%', ha='center', va='bottom', 
+            fontweight='bold', fontsize=12, color='darkred')
+    
+    ax2.text(bar.get_x() + bar.get_width()/2., height/2,
+            f'{customer_counts[i]:,}\ncustomers', 
+            ha='center', va='center', fontweight='bold', fontsize=10, 
+            color='white' if height > 15 else 'black')
+
+ax2.set_title('Churn Rates by Gender & Age Combination', fontweight='bold', fontsize=14)
+ax2.set_ylabel('Churn Rate (%)', fontweight='bold')
+ax2.set_xticks(range(len(combo_labels)))
+ax2.set_xticklabels(combo_labels, rotation=45, ha='right')
+ax2.grid(axis='y', alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# Print detailed analysis
+print(f"\n📊 GENDER & AGE SERVICE PREFERENCES:")
+print("="*80)
+
+for combo_name, stats in service_usage_matrix.items():
+    print(f"\n🎯 {combo_name.upper()} ({stats['Customer_Count']:,} customers):")
+    print(f"   ⚠️  Churn Rate: {stats['Churn_Rate']:.1f}%")
+    print(f"   📱 Service Preferences:")
+    
+    # Sort services by adoption rate
+    service_prefs = [(k, v) for k, v in stats.items() 
+                    if k not in ['Churn_Rate', 'Customer_Count'] and v > 0]
+    service_prefs.sort(key=lambda x: x[1], reverse=True)
+    
+    for service, rate in service_prefs[:5]:  # Top 5 services
+        if rate > 50:
+            preference = "🟢 High"
+        elif rate > 25:
+            preference = "🟡 Medium"
+        else:
+            preference = "🔴 Low"
+        
+        print(f"      • {service.replace('_', ' ')}: {rate:.1f}% - {preference}")
+
+# Find the most significant differences
+print(f"\n🔍 KEY GENDER & AGE INSIGHTS:")
+
+# Compare seniors vs non-seniors
+senior_services = {}
+non_senior_services = {}
+
+for combo_name, stats in service_usage_matrix.items():
+    if 'Senior' in combo_name and 'Non-Senior' not in combo_name:
+        for service in services_for_heatmap:
+            senior_services[service] = senior_services.get(service, 0) + stats.get(service, 0)
+    elif 'Non-Senior' in combo_name:
+        for service in services_for_heatmap:
+            non_senior_services[service] = non_senior_services.get(service, 0) + stats.get(service, 0)
+
+print(f"\n📈 SENIOR vs NON-SENIOR SERVICE PREFERENCES:")
+for service in services_for_heatmap:
+    senior_avg = senior_services[service] / 2  # Average across male/female seniors
+    non_senior_avg = non_senior_services[service] / 2  # Average across male/female non-seniors
+    difference = senior_avg - non_senior_avg
+    
+    if abs(difference) > 10:  # Significant difference
+        trend = "prefer" if difference > 0 else "avoid"
+        print(f"   • {service.replace('_', ' ')}: Seniors {trend} this service ({difference:+.1f}pp difference)")
+
+print(f"\n💡 STRATEGIC IMPLICATIONS:")
+print(f"   • Service preferences vary significantly by gender and age")
+print(f"   • Senior customers have different technology adoption patterns")
+print(f"   • Gender-specific service packages could improve satisfaction")
+print(f"   • Age-appropriate service recommendations are crucial")
+```
+
+## High-Value Customer Segments (Demographics + Service Combinations)
+
+::: {.callout-tip}
+## Customer Value Segmentation
+By combining demographic characteristics with service usage patterns and financial metrics, we can identify the most valuable customer segments and prioritize retention efforts effectively.
+:::
+
+```{python}
+# High-Value Customer Segment Analysis
+print("=== HIGH-VALUE CUSTOMER SEGMENT IDENTIFICATION ===")
+print("Identifying customer segments based on demographics + service combinations + value")
+
+# Create comprehensive customer value analysis
+customer_segments = []
+
+for life_stage in life_stages:
+    life_stage_customers = df_clean[df_clean['LifeStage'] == life_stage]
+    
+    # Calculate multiple value metrics
+    avg_monthly_charges = life_stage_customers['MonthlyCharges'].mean()
+    avg_total_charges = life_stage_customers['TotalCharges'].mean()
+    avg_tenure = life_stage_customers['tenure'].mean()
+    churn_rate = (life_stage_customers['Churn'] == 'Yes').mean() * 100
+    customer_count = len(life_stage_customers)
+    
+    # Calculate service adoption scores
+    high_value_services = ['InternetService', 'OnlineSecurity', 'OnlineBackup', 
+                          'DeviceProtection', 'TechSupport', 'StreamingTV', 'StreamingMovies']
+    
+    service_adoption_score = 0
+    for service in high_value_services:
+        if service == 'InternetService':
+            # Give higher score for Fiber optic
+            fiber_rate = (life_stage_customers[service] == 'Fiber optic').mean()
+            dsl_rate = (life_stage_customers[service] == 'DSL').mean()
+            service_adoption_score += (fiber_rate * 2) + (dsl_rate * 1)  # Fiber worth 2x
+        else:
+            adoption_rate = (life_stage_customers[service] == 'Yes').mean()
+            service_adoption_score += adoption_rate
+    
+    # Calculate Customer Lifetime Value (simplified)
+    # CLV = Average Monthly Revenue × Average Tenure × (1 - Churn Rate)
+    clv = avg_monthly_charges * avg_tenure * (1 - churn_rate/100)
+    
+    # Calculate total revenue for this segment
+    total_segment_revenue = life_stage_customers['TotalCharges'].sum()
+    revenue_at_risk = life_stage_customers[life_stage_customers['Churn'] == 'Yes']['TotalCharges'].sum()
+    
+    customer_segments.append({
+        'LifeStage': life_stage,
+        'CustomerCount': customer_count,
+        'AvgMonthlyCharges': avg_monthly_charges,
+        'AvgTotalCharges': avg_total_charges,
+        'AvgTenure': avg_tenure,
+        'ChurnRate': churn_rate,
+        'ServiceAdoptionScore': service_adoption_score,
+        'CLV': clv,
+        'TotalSegmentRevenue': total_segment_revenue,
+        'RevenueAtRisk': revenue_at_risk,
+        'RevenueAtRiskPct': (revenue_at_risk / total_segment_revenue) * 100 if total_segment_revenue > 0 else 0
+    })
+
+# Convert to DataFrame for easier analysis
+segments_df = pd.DataFrame(customer_segments)
+
+# Create comprehensive visualization
+fig, axes = plt.subplots(2, 2, figsize=(18, 12))
+fig.suptitle('High-Value Customer Segment Analysis', fontsize=16, fontweight='bold')
+
+# 1. Customer Lifetime Value vs Churn Rate
+ax1 = axes[0, 0]
+scatter = ax1.scatter(segments_df['ChurnRate'], segments_df['CLV'], 
+                     s=segments_df['CustomerCount']/10, 
+                     c=segments_df['ServiceAdoptionScore'], 
+                     cmap='viridis', alpha=0.7, edgecolors='black')
+
+for i, row in segments_df.iterrows():
+    ax1.annotate(row['LifeStage'], (row['ChurnRate'], row['CLV']), 
+                xytext=(5, 5), textcoords='offset points', fontsize=9, fontweight='bold')
+
+ax1.set_xlabel('Churn Rate (%)', fontweight='bold')
+ax1.set_ylabel('Customer Lifetime Value ($)', fontweight='bold')
+ax1.set_title('CLV vs Churn Rate (bubble size = customer count)', fontweight='bold')
+ax1.grid(True, alpha=0.3)
+
+# Add colorbar
+cbar = plt.colorbar(scatter, ax=ax1)
+cbar.set_label('Service Adoption Score', rotation=270, labelpad=20)
+
+# 2. Total Revenue vs Revenue at Risk
+ax2 = axes[0, 1]
+bars = ax2.bar(range(len(segments_df)), segments_df['TotalSegmentRevenue'], 
+               color='lightblue', alpha=0.7, label='Total Revenue')
+bars2 = ax2.bar(range(len(segments_df)), segments_df['RevenueAtRisk'], 
+                color='lightcoral', alpha=0.8, label='Revenue at Risk')
+
+ax2.set_xlabel('Life Stage', fontweight='bold')
+ax2.set_ylabel('Revenue ($)', fontweight='bold')
+ax2.set_title('Total Revenue vs Revenue at Risk', fontweight='bold')
+ax2.set_xticks(range(len(segments_df)))
+ax2.set_xticklabels(segments_df['LifeStage'], rotation=45, ha='right')
+ax2.legend()
+ax2.grid(axis='y', alpha=0.3)
+
+# 3. Service Adoption Score
+ax3 = axes[1, 0]
+colors = plt.cm.Set3(range(len(segments_df)))
+bars = ax3.bar(range(len(segments_df)), segments_df['ServiceAdoptionScore'], 
+               color=colors, alpha=0.8, edgecolor='black')
+
+for i, bar in enumerate(bars):
+    height = bar.get_height()
+    ax3.text(bar.get_x() + bar.get_width()/2., height + 0.05,
+            f'{height:.2f}', ha='center', va='bottom', 
+            fontweight='bold', fontsize=10)
+
+ax3.set_xlabel('Life Stage', fontweight='bold')
+ax3.set_ylabel('Service Adoption Score', fontweight='bold')
+ax3.set_title('Service Adoption by Life Stage', fontweight='bold')
+ax3.set_xticks(range(len(segments_df)))
+ax3.set_xticklabels(segments_df['LifeStage'], rotation=45, ha='right')
+ax3.grid(axis='y', alpha=0.3)
+
+# 4. Customer Value Matrix
+ax4 = axes[1, 1]
+# Create value categories
+segments_df['ValueCategory'] = segments_df.apply(
+    lambda row: 'High Value' if row['CLV'] > segments_df['CLV'].median() and row['ChurnRate'] < segments_df['ChurnRate'].median()
+    else 'High Risk' if row['CLV'] > segments_df['CLV'].median() and row['ChurnRate'] >= segments_df['ChurnRate'].median()
+    else 'Low Value, Stable' if row['CLV'] <= segments_df['CLV'].median() and row['ChurnRate'] < segments_df['ChurnRate'].median()
+    else 'Low Value, High Risk', axis=1
+)
+
+value_categories = segments_df['ValueCategory'].value_counts()
+colors = ['lightgreen', 'gold', 'lightcoral', 'darkred']
+wedges, texts, autotexts = ax4.pie(value_categories.values, labels=value_categories.index, 
+                                  autopct='%1.1f%%', colors=colors, startangle=90)
+
+ax4.set_title('Customer Value Distribution', fontweight='bold')
+
+plt.tight_layout()
+plt.show()
+
+# Print detailed segment analysis
+print(f"\n📊 CUSTOMER SEGMENT VALUE ANALYSIS:")
+print("="*80)
+
+# Sort by CLV descending
+segments_sorted = segments_df.sort_values('CLV', ascending=False)
+
+for _, segment in segments_sorted.iterrows():
+    print(f"\n🎯 {segment['LifeStage'].upper()}:")
+    print(f"   👥 Customer Count: {segment['CustomerCount']:,} ({(segment['CustomerCount']/len(df_clean)*100):.1f}% of base)")
+    print(f"   💰 Avg Monthly Charges: ${segment['AvgMonthlyCharges']:.2f}")
+    print(f"   📅 Avg Tenure: {segment['AvgTenure']:.1f} months")
+    print(f"   ⚠️  Churn Rate: {segment['ChurnRate']:.1f}%")
+    print(f"   🌟 Service Adoption Score: {segment['ServiceAdoptionScore']:.2f}/7")
+    print(f"   💎 Customer Lifetime Value: ${segment['CLV']:.0f}")
+    print(f"   💵 Total Segment Revenue: ${segment['TotalSegmentRevenue']:,.0f}")
+    print(f"   🚨 Revenue at Risk: ${segment['RevenueAtRisk']:,.0f} ({segment['RevenueAtRiskPct']:.1f}%)")
+    
+    # Value category
+    print(f"   🏆 Value Category: {segment['ValueCategory']}")
+
+# Identify top opportunities
+print(f"\n🎯 TOP BUSINESS OPPORTUNITIES:")
+print("="*50)
+
+high_value_segments = segments_df[segments_df['CLV'] > segments_df['CLV'].median()]
+high_risk_segments = segments_df[segments_df['ChurnRate'] > segments_df['ChurnRate'].median()]
+
+print(f"\n1. 🟢 HIGH-VALUE SEGMENTS TO PROTECT:")
+for _, segment in high_value_segments.iterrows():
+    if segment['ChurnRate'] > 25:  # High-value but at risk
+        potential_loss = segment['RevenueAtRisk']
+        print(f"   • {segment['LifeStage']}: ${potential_loss:,.0f} at risk ({segment['ChurnRate']:.1f}% churn)")
+
+print(f"\n2. 🔴 HIGH-RISK SEGMENTS TO RESCUE:")
+for _, segment in high_risk_segments.iterrows():
+    if segment['CustomerCount'] > 500:  # Significant volume
+        print(f"   • {segment['LifeStage']}: {segment['CustomerCount']:,} customers at {segment['ChurnRate']:.1f}% churn risk")
+
+print(f"\n3. 💎 UPSELLING OPPORTUNITIES:")
+low_adoption_high_value = segments_df[
+    (segments_df['ServiceAdoptionScore'] < segments_df['ServiceAdoptionScore'].median()) & 
+    (segments_df['AvgMonthlyCharges'] > segments_df['AvgMonthlyCharges'].median())
+]
+for _, segment in low_adoption_high_value.iterrows():
+    print(f"   • {segment['LifeStage']}: High spend (${segment['AvgMonthlyCharges']:.0f}/mo) but low service adoption ({segment['ServiceAdoptionScore']:.1f}/7)")
+
+print(f"\n💡 STRATEGIC RECOMMENDATIONS:")
+print(f"   ✅ Focus retention efforts on high-CLV segments with elevated churn")
+print(f"   ✅ Develop targeted service bundles for each life stage")  
+print(f"   ✅ Implement early warning systems for high-value at-risk customers")
+print(f"   ✅ Create upselling campaigns for low-adoption, high-spend segments")
+```
+
+::: {.callout-note}
+## Demographic + Service Analysis Summary
+This comprehensive analysis reveals how customer demographics interact with service usage to impact churn:
+
+- **Service Adoption Patterns**: Different life stages show distinct preferences (seniors prefer fiber + streaming)
+- **Bundle Effectiveness**: Service bundles perform differently across demographics (31.5pp churn reduction for senior couples with security bundles)
+- **Gender & Age Impact**: Senior customers have significantly different service adoption patterns
+- **High-Value Segments**: Young couples offer highest CLV ($2,478) while senior individuals present highest risk (48.9% churn)
+
+These insights provide a foundation for developing targeted retention strategies and personalized service offerings.
+:::

@@ -1,0 +1,35 @@
+[project]
+name = "telco-customer-churn"
+version = "0.1.0"
+description = "End-to-end ML Project to predict Telco Customer Churn" 
+owner = "Heitor Carvalho Pinheiro"
+readme = "README.md"
+requires-python = ">=3.12.4"
+dependencies = [
+    "fastapi>=0.118.0",
+    "ipykernel>=6.30.1",
+    "jupyter>=1.1.1",
+    "lightgbm>=4.6.0",
+    "matplotlib>=3.10.6",
+    "nbclient>=0.10.2",
+    "nbconvert>=7.16.6",
+    "nbformat>=5.10.4",
+    "openpyxl>=3.1.5",
+    "pandas>=2.3.3",
+    "pydantic>=2.12.0",
+    "pyyaml>=6.0.3",
+    "requests>=2.32.5",
+    "scikit-learn>=1.7.2",
+    "seaborn>=0.13.2",
+    "statsmodels>=0.14.5",
+    "streamlit>=1.50.0",
+    "tabulate>=0.9.0",
+    "taskipy>=1.14.1",
+    "uvicorn>=0.37.0",
+    "xlsxwriter>=3.2.9",
+]
+
+[tool.taskipy.tasks]
+server = "uvicorn src.backend.api.main:app --reload --port 8081 --host 127.0.0.1"
+frontend = "streamlit run src/frontend/app.py --server.port 8501"
+dev = "echo 'Starting both backend and frontend...' && start cmd /k 'uv run task server' && uv run task frontend"
