@@ -274,12 +274,25 @@ class ChurnPredictor:
         # Select only the features used in training in the correct order
         df_final = df_processed[self.model_features]
         
-        # Scale the features
-        df_scaled = pd.DataFrame(
-            self.scaler.transform(df_final),
-            columns=df_final.columns,
-            index=df_final.index
-        )
+        # Scale only the numerical features that the scaler was trained on
+        # The scaler was only fitted on certain numerical columns
+        if hasattr(self.scaler, 'feature_names_in_'):
+            numerical_features = list(self.scaler.feature_names_in_)
+        else:
+            # Fallback to common numerical features
+            numerical_features = ['tenure', 'MonthlyCharges', 'TotalCharges', 'ServiceAdoptionScore', 'MonthlyChargesPerService']
+        
+        # Create a copy of the final dataframe
+        df_scaled = df_final.copy()
+        
+        # Scale only the numerical features
+        if numerical_features:
+            numerical_data = df_final[numerical_features]
+            scaled_numerical = self.scaler.transform(numerical_data)
+            
+            # Replace the numerical columns with scaled versions
+            for i, col in enumerate(numerical_features):
+                df_scaled[col] = scaled_numerical[:, i]
         
         return df_scaled
     
