@@ -22,45 +22,83 @@ logger = logging.getLogger(__name__)
 class ChurnPredictor:
     """Unified churn prediction service"""
     
-    def __init__(self, models_dir: str = "models"):
+    def __init__(self, models_dir: str = None):
         """Initialize the predictor with model directory"""
+        if models_dir is None:
+            # Try different possible paths for the models directory
+            possible_paths = [
+                "models",
+                "/app/models", 
+                os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "models"),
+                os.path.join(os.getcwd(), "models")
+            ]
+            
+            for path in possible_paths:
+                if os.path.exists(path):
+                    models_dir = path
+                    break
+            
+            if models_dir is None:
+                raise Exception("Could not find models directory. Searched paths: " + ", ".join(possible_paths))
+        
         self.models_dir = models_dir
         self.model = None
         self.scaler = None
         self.label_encoders = None
         self.model_features = None
         self.model_metadata = None
+        logger.info(f"Using models directory: {self.models_dir}")
         self._load_model_components()
     
     def _load_model_components(self):
         """Load all model components from the models directory"""
         try:
+            logger.info(f"📁 Looking for models in: {self.models_dir}")
+            
+            # Check if models directory exists
+            if not os.path.exists(self.models_dir):
+                raise Exception(f"Models directory not found: {self.models_dir}")
+            
+            # List all files in models directory for debugging
+            model_files = os.listdir(self.models_dir)
+            logger.info(f"📋 Files in models directory: {model_files}")
+            
             # Load the trained model
             model_path = os.path.join(self.models_dir, "churn_prediction_model.pkl")
+            if not os.path.exists(model_path):
+                raise Exception(f"Model file not found: {model_path}")
             with open(model_path, "rb") as f:
                 self.model = pickle.load(f)
             logger.info("✅ Model loaded successfully")
             
             # Load the feature scaler
             scaler_path = os.path.join(self.models_dir, "feature_scaler.pkl")
+            if not os.path.exists(scaler_path):
+                raise Exception(f"Scaler file not found: {scaler_path}")
             with open(scaler_path, "rb") as f:
                 self.scaler = pickle.load(f)
             logger.info("✅ Feature scaler loaded successfully")
             
             # Load label encoders
             encoders_path = os.path.join(self.models_dir, "label_encoders.pkl")
+            if not os.path.exists(encoders_path):
+                raise Exception(f"Encoders file not found: {encoders_path}")
             with open(encoders_path, "rb") as f:
                 self.label_encoders = pickle.load(f)
             logger.info("✅ Label encoders loaded successfully")
             
             # Load model features list
             features_path = os.path.join(self.models_dir, "model_features.pkl")
+            if not os.path.exists(features_path):
+                raise Exception(f"Features file not found: {features_path}")
             with open(features_path, "rb") as f:
                 self.model_features = pickle.load(f)
             logger.info("✅ Model features loaded successfully")
             
             # Load model metadata
             metadata_path = os.path.join(self.models_dir, "model_metadata.pkl")
+            if not os.path.exists(metadata_path):
+                raise Exception(f"Metadata file not found: {metadata_path}")
             with open(metadata_path, "rb") as f:
                 self.model_metadata = pickle.load(f)
             logger.info("✅ Model metadata loaded successfully")
@@ -69,6 +107,9 @@ class ChurnPredictor:
             
         except Exception as e:
             logger.error(f"❌ Error loading model components: {str(e)}")
+            logger.error(f"📁 Current working directory: {os.getcwd()}")
+            logger.error(f"📁 Models directory path: {self.models_dir}")
+            logger.error(f"📁 Models directory exists: {os.path.exists(self.models_dir)}")
             raise Exception(f"Failed to load model components: {str(e)}")
     
     def _validate_input_data(self, data: Dict) -> Dict:
