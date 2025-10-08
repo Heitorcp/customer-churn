@@ -7,6 +7,7 @@ from the FastAPI backend.
 
 import streamlit as st
 import pandas as pd
+import requests
 from io import BytesIO
 import time
 from typing import Dict, List
@@ -16,7 +17,6 @@ import os
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from auth import require_authentication, show_user_info
-from prediction_service import get_predictor
 
 # Page configuration
 st.set_page_config(
@@ -25,22 +25,29 @@ st.set_page_config(
     layout="wide"
 )
 
+# API Configuration
+API_BASE_URL = os.getenv("API_BASE_URL", "http://backend:8081")
+
 def check_api_health() -> bool:
-    """Check if the prediction service is working"""
+    """Check if the API is running and healthy"""
     try:
-        predictor = get_predictor()
-        health_result = predictor.health_check()
-        return health_result.get("status") == "healthy"
+        response = requests.get(f"{API_BASE_URL}/health", timeout=5)
+        return response.status_code == 200 and response.json().get("status") == "healthy"
     except Exception:
         return False
 
 def predict_single_customer(customer_data: Dict) -> Dict:
     """Make prediction for a single customer"""
     try:
-        predictor = get_predictor()
-        return predictor.predict_single(customer_data)
-    except Exception as e:
-        st.error(f"Prediction failed: {str(e)}")
+        response = requests.post(
+            f"{API_BASE_URL}/predict",
+            json=customer_data,
+            timeout=10
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        st.error(f"API Request failed: {str(e)}")
         return None
 
 def validate_customer_data(df: pd.DataFrame) -> tuple[bool, List[str]]:
@@ -124,17 +131,19 @@ def main():
     
     st.title("🎯 Customer Churn Prediction")
     
-    # Check prediction service health
+    # Check API health
     if not check_api_health():
-        st.error("🚨 **Prediction Service is not working!**")
+        st.error("🚨 **API Server is not running!**")
         st.markdown("""
-        The machine learning model could not be loaded. Please check:
-        - Model files are present in the `models/` directory
-        - All required dependencies are installed
+        Please start the API server first:
+        ```bash
+        uv run task server
+        ```
+        The API should be running on http://127.0.0.1:8081
         """)
         return
     
-    st.success("✅ Prediction Service is ready!")
+    st.success("✅ API Server is running and healthy!")
     
     # Download sample template
     st.subheader("📥 Download Sample Template")
@@ -203,14 +212,13 @@ def main():
                     prediction = predict_single_customer(customer_data)
                     
                     if prediction:
-                        churn_pred_text = "Will Churn" if prediction['prediction'] == 1 else "Will Not Churn"
                         predictions.append({
                             'Customer_ID': idx + 1,
                             'Churn_Probability': prediction['churn_probability'],
-                            'Churn_Prediction': churn_pred_text,
+                            'Churn_Prediction': prediction['churn_prediction'],
                             'Risk_Category': prediction['risk_category'],
-                            'Confidence_Level': prediction['confidence'],
-                            'Recommended_Action': prediction['recommendation']
+                            'Confidence_Level': prediction['confidence_level'],
+                            'Recommended_Action': prediction['recommended_action']
                         })
                     else:
                         predictions.append({
