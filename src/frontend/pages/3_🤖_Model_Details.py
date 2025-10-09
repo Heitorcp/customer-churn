@@ -51,8 +51,13 @@ def main():
     """)
     
     # Get the path to the Modeling HTML file
-    project_root = Path(__file__).parent.parent.parent.parent
-    modeling_html_path = project_root / "outputs" / "02-Modelling.html"
+    # In Docker container, outputs are at /app/outputs/
+    if os.path.exists("/app/outputs"):
+        modeling_html_path = Path("/app/outputs") / "02-Modelling.html"
+    else:
+        # Fallback for local development
+        project_root = Path(__file__).parent.parent.parent.parent
+        modeling_html_path = project_root / "outputs" / "02-Modelling.html"
     
     if not modeling_html_path.exists():
         st.error("📁 Modeling HTML file not found!")

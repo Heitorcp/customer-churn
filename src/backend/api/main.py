@@ -49,10 +49,15 @@ def load_model_components():
     """Load all model components from the models directory"""
     global model, scaler, label_encoders, model_features, model_metadata
     
-    # Get the absolute path to the models directory (3 levels up from current file)
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    models_dir = os.path.join(current_dir, "..", "..", "..", "models")
-    models_dir = os.path.abspath(models_dir)
+    # Get the absolute path to the models directory
+    # In Docker container, models are at /app/models/
+    if os.path.exists("/app/models"):
+        models_dir = "/app/models"
+    else:
+        # Fallback for local development (3 levels up from current file)
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        models_dir = os.path.join(current_dir, "..", "..", "..", "models")
+        models_dir = os.path.abspath(models_dir)
     
     try:
         # Load the trained model

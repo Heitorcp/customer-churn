@@ -2,7 +2,7 @@
 name = "telco-customer-churn"
 version = "0.1.0"
 description = "End-to-end ML Project to predict Telco Customer Churn" 
-owner = "Heitor Carvalho Pinheiro"
+authors = [{name = "Heitor Carvalho Pinheiro"}]
 readme = "README.md"
 requires-python = ">=3.12.4"
 dependencies = [

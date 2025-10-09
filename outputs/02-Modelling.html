@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Data Science Report">
-<meta name="dcterms.date" content="2025-10-07">
+<meta name="dcterms.date" content="2025-10-08">
 
 <title>Telco Customer Churn - Predictive Modeling</title>
 <style>
@@ -3161,7 +3161,7 @@ summary {
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">October 7, 2025</p>
+      <p class="date">October 8, 2025</p>
     </div>
   </div>
   
@@ -3189,7 +3189,7 @@ Modeling Overview
 </div>
 </div>
 <p>We’ll create a Churn Prediction model based on the data explored in the notebook: <code>01 - EDA.ipynb</code></p>
-<div id="964ae728" class="cell" data-execution_count="1">
+<div id="61b3de9d" class="cell" data-execution_count="1">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Import Essential Libraries</span></span>
@@ -3249,7 +3249,7 @@ Data Foundation
 <p>We’ll start with the same data cleaning pipeline from our EDA, incorporating all the insights we discovered about demographics, service bundles, and customer behavior patterns.</p>
 </div>
 </div>
-<div id="42da52ea" class="cell" data-execution_count="2">
+<div id="5d756918" class="cell" data-execution_count="2">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Load and Clean Data (Same pipeline as EDA)</span></span>
@@ -3313,7 +3313,7 @@ EDA-Driven Features
 <p>Based on our EDA insights, we’ll create meaningful features that capture the demographic and service interaction patterns we discovered.</p>
 </div>
 </div>
-<div id="8f24e408" class="cell" data-execution_count="3">
+<div id="01b463b9" class="cell" data-execution_count="3">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Feature Engineering - Leveraging EDA Insights</span></span>
@@ -3506,7 +3506,7 @@ EDA-Driven Features
 <summary>
 Click to view data preparation details
 </summary>
-<div id="812853b6" class="cell" data-execution_count="4">
+<div id="54ac3b6a" class="cell" data-execution_count="4">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Data Preparation for Modeling</span></span>
@@ -3628,7 +3628,7 @@ Class Imbalance Handling
 <p>We’ll create our 80/20 split ensuring the same target distribution in both sets, addressing class imbalance appropriately without using synthetic sampling techniques like SMOTE.</p>
 </div>
 </div>
-<div id="b4b071c5" class="cell" data-execution_count="5">
+<div id="1b9acb5b" class="cell" data-execution_count="5">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Train-Test Split with Stratification</span></span>
@@ -3739,7 +3739,7 @@ Statistical Foundation
 <p>We’ll start with a logistic regression model using statsmodels’ formula API (R-style) to get detailed statistical insights and interpretable coefficients.</p>
 </div>
 </div>
-<div id="54342b2b" class="cell" data-execution_count="6">
+<div id="93d27a58" class="cell" data-execution_count="6">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Baseline Logistic Regression with Statsmodels Formula API</span></span>
@@ -3797,7 +3797,7 @@ Statistical Foundation
 </div>
 <section id="baseline-model-results-and-interpretation" class="level2" data-number="2.1">
 <h2 data-number="2.1" class="anchored" data-anchor-id="baseline-model-results-and-interpretation"><span class="header-section-number">2.1</span> Baseline Model Results and Interpretation</h2>
-<div id="8c9087dc" class="cell" data-execution_count="7">
+<div id="9a83293a" class="cell" data-execution_count="7">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Display Beautiful Model Summary</span></span>
@@ -3889,8 +3889,8 @@ Statistical Foundation
 Dep. Variable:           Churn_Binary   No. Observations:                 5634
 Model:                          Logit   Df Residuals:                     5613
 Method:                           MLE   Df Model:                           20
-Date:                Tue, 07 Oct 2025   Pseudo R-squ.:                  0.2767
-Time:                        16:18:07   Log-Likelihood:                -2357.8
+Date:                Wed, 08 Oct 2025   Pseudo R-squ.:                  0.2767
+Time:                        22:36:00   Log-Likelihood:                -2357.8
 converged:                       True   LL-Null:                       -3259.7
 Covariance Type:            nonrobust   LLR p-value:                     0.000
 ===============================================================================================================
@@ -4010,7 +4010,7 @@ Ensemble and Regularized Methods
 </div>
 <section id="random-forest-model-with-class-balancing" class="level2" data-number="3.1">
 <h2 data-number="3.1" class="anchored" data-anchor-id="random-forest-model-with-class-balancing"><span class="header-section-number">3.1</span> Random Forest Model with Class Balancing</h2>
-<div id="e036e5c4" class="cell" data-execution_count="8">
+<div id="3b5cdeb4" class="cell" data-execution_count="8">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Random Forest Model with Class Balancing</span></span>
@@ -4116,7 +4116,7 @@ AUC-ROC:   0.842</code></pre>
 </section>
 <section id="enhanced-logistic-regression-sklearn-with-regularization" class="level2" data-number="3.2">
 <h2 data-number="3.2" class="anchored" data-anchor-id="enhanced-logistic-regression-sklearn-with-regularization"><span class="header-section-number">3.2</span> Enhanced Logistic Regression (Sklearn) with Regularization</h2>
-<div id="1049cf17" class="cell" data-execution_count="9">
+<div id="611e1ef5" class="cell" data-execution_count="9">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Enhanced Logistic Regression with Regularization (Sklearn)</span></span>
@@ -4202,7 +4202,7 @@ Comprehensive Evaluation
 </div>
 <section id="roc-curves-and-model-comparison" class="level2" data-number="4.1">
 <h2 data-number="4.1" class="anchored" data-anchor-id="roc-curves-and-model-comparison"><span class="header-section-number">4.1</span> ROC Curves and Model Comparison</h2>
-<div id="bb0acd84" class="cell" data-execution_count="10">
+<div id="7d1c1cb9" class="cell" data-execution_count="10">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ROC Curves and Model Comparison</span></span>
@@ -4371,7 +4371,7 @@ Business Value Optimization
 <p>We’ll find the optimal classification threshold using precision-recall analysis to maximize business value and minimize false alarms.</p>
 </div>
 </div>
-<div id="42fc9bd7" class="cell" data-execution_count="11">
+<div id="b795619e" class="cell" data-execution_count="11">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="sourceCode cell-code" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Optimal Threshold Analysis for Best Model</span></span>
@@ -4566,7 +4566,7 @@ Strategic Implementation
 <p>Let’s synthesize our findings and provide actionable business insights from our comprehensive churn prediction analysis.</p>
 </div>
 </div>
-<div id="4fc946df" class="cell" data-execution_count="12">
+<div id="010e07bb" class="cell" data-execution_count="12">
 <details class="code-fold">
 <summary>Show code</summary>
 <div class="sourceCode cell-code" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Final Model Summary and Business Impact Analysis</span></span>

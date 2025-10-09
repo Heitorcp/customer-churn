@@ -24,15 +24,14 @@ RUN apt-get update \
 RUN pip install uv
 
 # Copy project files from root
-COPY ../../pyproject.toml ./
-COPY ../../uv.lock ./
+COPY pyproject.toml ./
 
 # Install Python dependencies
-RUN uv pip install --system --no-cache -r pyproject.toml
+RUN uv pip install --system --no-cache -e .
 
 # Copy application code
-COPY . ./src/frontend/
-COPY ../../outputs/ ./outputs/
+COPY src/frontend ./src/frontend/
+COPY outputs/ ./outputs/
 
 # Create directories and set permissions
 RUN mkdir -p /app/src/frontend/config \

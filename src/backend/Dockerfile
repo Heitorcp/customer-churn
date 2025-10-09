@@ -21,15 +21,14 @@ RUN apt-get update \
 RUN pip install uv
 
 # Copy project files from root
-COPY ../../pyproject.toml ./
-COPY ../../uv.lock ./
+COPY pyproject.toml ./
 
 # Install Python dependencies
-RUN uv pip install --system --no-cache -r pyproject.toml
+RUN uv pip install --system --no-cache -e .
 
 # Copy application code
-COPY . ./src/backend/
-COPY ../../models/ ./models/
+COPY src/backend/ ./src/backend/
+COPY models/ ./models/
 
 # Create non-root user for security
 RUN adduser --disabled-password --gecos '' --uid 1000 appuser \

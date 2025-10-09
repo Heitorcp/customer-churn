@@ -1,10 +1,8 @@
-version: '3.8'
-
 services:
   backend:
     build:
-      context: ./src/backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: /src/backend/Dockerfile
     container_name: churn-prediction-backend
     ports:
       - "8081:8081"
@@ -12,7 +10,7 @@ services:
       - PYTHONPATH=/app
       - PORT=8081
     volumes:
-      - ../../models:/app/models:ro  # Mount models as read-only
+      - ./models:/app/models:ro  # Mount models as read-only
     networks:
       - churn-network
     restart: unless-stopped
@@ -25,8 +23,8 @@ services:
 
   frontend:
     build:
-      context: ./src/frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: /src/frontend/Dockerfile
     container_name: churn-prediction-frontend
     ports:
       - "8501:8501"
@@ -37,7 +35,7 @@ services:
       - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
       - STREAMLIT_SERVER_HEADLESS=true
     volumes:
-      - ../../outputs:/app/outputs:ro  # Mount outputs as read-only
+      - ./outputs:/app/outputs:ro  # Mount outputs as read-only
       - ./config:/app/src/frontend/config  # Mount config for user management
     networks:
       - churn-network

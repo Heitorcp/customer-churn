@@ -47,8 +47,13 @@ def main():
     """)
     
     # Get the path to the EDA HTML file
-    project_root = Path(__file__).parent.parent.parent.parent
-    eda_html_path = project_root / "outputs" / "01-EDA.html"
+    # In Docker container, outputs are at /app/outputs/
+    if os.path.exists("/app/outputs"):
+        eda_html_path = Path("/app/outputs") / "01-EDA.html"
+    else:
+        # Fallback for local development
+        project_root = Path(__file__).parent.parent.parent.parent
+        eda_html_path = project_root / "outputs" / "01-EDA.html"
     
     if not eda_html_path.exists():
         st.error("📁 EDA HTML file not found!")
