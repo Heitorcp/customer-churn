@@ -47,12 +47,14 @@ def main():
     """)
     
     # Get the path to the EDA HTML file
+    # Always define project_root for debugging purposes
+    project_root = Path(__file__).parent.parent.parent.parent
+    
     # In Docker container, outputs are at /app/outputs/
     if os.path.exists("/app/outputs"):
         eda_html_path = Path("/app/outputs") / "01-EDA.html"
     else:
         # Fallback for local development
-        project_root = Path(__file__).parent.parent.parent.parent
         eda_html_path = project_root / "outputs" / "01-EDA.html"
     
     if not eda_html_path.exists():
@@ -72,13 +74,20 @@ def main():
             st.write(f"**Project root:** {project_root}")
             st.write(f"**Looking for:** {eda_html_path}")
             
-            outputs_dir = project_root / "outputs"
-            if outputs_dir.exists():
-                st.write("**Files in outputs directory:**")
-                for file in outputs_dir.iterdir():
+            # Check both Docker and local outputs directories
+            docker_outputs = Path("/app/outputs")
+            local_outputs = project_root / "outputs"
+            
+            if docker_outputs.exists():
+                st.write("**Files in Docker outputs directory (/app/outputs):**")
+                for file in docker_outputs.iterdir():
+                    st.write(f"  - {file.name}")
+            elif local_outputs.exists():
+                st.write("**Files in local outputs directory:**")
+                for file in local_outputs.iterdir():
                     st.write(f"  - {file.name}")
             else:
-                st.write("**Outputs directory does not exist**")
+                st.write("**No outputs directory found (checked both /app/outputs and local)**")
         
         return
     

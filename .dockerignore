@@ -51,7 +51,7 @@ Thumbs.db
 assets/
 notebooks/
 *.ipynb
-outputs/*.html
+# outputs/*.html  # Commented out - we need EDA HTML files in the container
 outputs/*.qmd
 
 # Logs

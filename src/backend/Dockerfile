@@ -43,4 +43,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE ${PORT}
 
 # Command to run the application
-CMD ["python", "-m", "uvicorn", "src.backend.api.main:app", "--host", "0.0.0.0", "--port", "8081", "--reload"]
+CMD ["sh", "-c", "python -m uvicorn src.backend.api.main:app --host 0.0.0.0 --port ${PORT:-8081}"]

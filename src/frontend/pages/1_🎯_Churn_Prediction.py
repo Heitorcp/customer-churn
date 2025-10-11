@@ -17,6 +17,7 @@ import os
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from auth import require_authentication, show_user_info
+from config import get_api_base_url, detect_environment
 
 # Page configuration
 st.set_page_config(
@@ -25,11 +26,14 @@ st.set_page_config(
     layout="wide"
 )
 
-# API Configuration
-API_BASE_URL = os.getenv("API_BASE_URL", "http://backend:8081")
+# API Configuration - Smart environment detection
+API_BASE_URL = get_api_base_url()
 
 def check_api_health() -> bool:
     """Check if the API is running and healthy"""
+    if not API_BASE_URL:
+        return False
+    
     try:
         response = requests.get(f"{API_BASE_URL}/health", timeout=5)
         return response.status_code == 200 and response.json().get("status") == "healthy"
@@ -133,14 +137,48 @@ def main():
     
     # Check API health
     if not check_api_health():
-        st.error("🚨 **API Server is not running!**")
-        st.markdown("""
-        Please start the API server first:
-        ```bash
-        uv run task server
-        ```
-        The API should be running on http://127.0.0.1:8081
-        """)
+        st.error("🚨 **API Server is not responding!**")
+        
+        # Show environment-specific troubleshooting
+        env = detect_environment()
+        if env == 'cloud_run':
+            st.markdown(f"""
+            **Cloud Run Environment Detected**
+            
+            🔗 **Current API URL**: `{API_BASE_URL}`
+            
+            **Troubleshooting steps:**
+            1. Check if the backend service is deployed and running
+            2. Verify the backend URL is correct
+            3. Check Cloud Run logs for errors
+            
+            **Quick checks:**
+            - [Backend Service Status]({API_BASE_URL}/health)
+            - [API Documentation]({API_BASE_URL}/docs)
+            """)
+        elif env == 'docker':
+            st.markdown(f"""
+            **Docker Environment Detected**
+            
+            🔗 **Current API URL**: `{API_BASE_URL}`
+            
+            **Troubleshooting steps:**
+            1. Ensure backend container is running: `docker ps`
+            2. Check backend logs: `docker logs churn-prediction-backend`
+            3. Restart services: `docker-compose restart`
+            """)
+        else:
+            st.markdown(f"""
+            **Local Development Environment**
+            
+            🔗 **Current API URL**: `{API_BASE_URL}`
+            
+            Please start the API server first:
+            ```bash
+            uv run task server
+            ```
+            The API should be running on http://127.0.0.1:8081
+            """)
         return
     
     st.success("✅ API Server is running and healthy!")

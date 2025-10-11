@@ -48,17 +48,16 @@ RUN mkdir -p /home/appuser/.streamlit
 # Create Streamlit configuration
 RUN echo '[server]' > /home/appuser/.streamlit/config.toml \
     && echo 'headless = true' >> /home/appuser/.streamlit/config.toml \
-    && echo 'port = 8501' >> /home/appuser/.streamlit/config.toml \
     && echo 'address = "0.0.0.0"' >> /home/appuser/.streamlit/config.toml \
     && echo 'enableCORS = false' >> /home/appuser/.streamlit/config.toml \
     && echo 'enableXsrfProtection = false' >> /home/appuser/.streamlit/config.toml
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+    CMD curl -f http://localhost:${PORT:-8501}/_stcore/health || exit 1
 
-# Expose port
-EXPOSE 8501
+# Expose port (will be overridden by Cloud Run)
+EXPOSE ${PORT:-8501}
 
 # Command to run the application
-CMD ["streamlit", "run", "src/frontend/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["sh", "-c", "streamlit run src/frontend/app.py --server.port=${PORT:-8501} --server.address=0.0.0.0"]
