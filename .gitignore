@@ -9,5 +9,34 @@ wheels/
 # Virtual environments
 .venv 
 
-#Shell scripts 
-*.sh
+# Frontend Node/Vite build artifacts
+frontend-react/node_modules/
+frontend-react/dist/
+frontend-react/.vite/
+frontend-react/.eslintcache
+frontend-react/coverage/
+frontend-react/*.log
+frontend-react/npm-debug.log*
+frontend-react/yarn-debug.log*
+frontend-react/yarn-error.log*
+frontend-react/pnpm-debug.log*
+
+# Root-level node modules if ever created
+node_modules/
+
+# Logs
+*.log
+logs/
+
+# Editor/OS junk
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Env files
+*.env
+*.env.*
+
+# Optional: keep deploy scripts tracked; remove the global *.sh ignore

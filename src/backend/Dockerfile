@@ -29,6 +29,7 @@ RUN uv pip install --system --no-cache -e .
 # Copy application code
 COPY src/backend/ ./src/backend/
 COPY models/ ./models/
+COPY outputs/ ./outputs/
 
 # Create non-root user for security
 RUN adduser --disabled-password --gecos '' --uid 1000 appuser \

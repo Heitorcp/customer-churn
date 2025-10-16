@@ -9,20 +9,16 @@ Date: October 2025
 """
 
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 import pickle
 import pandas as pd
-from typing import Dict, List, Optional
+from typing import List, Optional
 import os
 from datetime import datetime
 import logging
-import sys
 
-# Add the project root to the Python path to enable imports from src/
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
-# Import schemas from the schemas package
+# Import schemas from the package
 from .schemas import CustomerData, ChurnPrediction
 
 # Configure logging
@@ -36,6 +32,18 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
+)
+
+# Allow local dev frontends to access the API (and static EDA) during development
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Global variables for model components
@@ -86,6 +94,27 @@ def load_model_components():
     except Exception as e:
         logger.error(f"Error loading model components: {str(e)}")
         return False
+
+# Mount static outputs directory for serving EDA report (and other artifacts)
+def mount_outputs_if_available():
+    try:
+        outputs_dir = None
+        if os.path.isdir("/app/outputs"):
+            outputs_dir = "/app/outputs"
+        else:
+            # Compute repo root relative to this file: src/backend/api/main.py -> repo_root/outputs
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+            local_outputs = os.path.abspath(os.path.join(repo_root, "outputs"))
+            if os.path.isdir(local_outputs):
+                outputs_dir = local_outputs
+
+        if outputs_dir:
+            app.mount("/outputs", StaticFiles(directory=outputs_dir), name="outputs")
+            logger.info(f"Mounted static outputs directory at /outputs from: {outputs_dir}")
+        else:
+            logger.warning("No outputs directory found to mount. EDA report may not be available.")
+    except Exception as e:
+        logger.error(f"Failed to mount outputs directory: {e}")
 
 def preprocess_customer_data(customer_data: CustomerData) -> pd.DataFrame:
     """Preprocess customer data to match model expectations"""
@@ -197,6 +226,7 @@ def preprocess_customer_data(customer_data: CustomerData) -> pd.DataFrame:
 async def startup_event():
     """Load model components on startup"""
     logger.info("Starting Telco Churn Prediction API...")
+    mount_outputs_if_available()
     
     if not load_model_components():
         logger.error("Failed to load model components. API may not function correctly.")
